@@ -6,8 +6,12 @@ from botocore.exceptions import ClientError
 s3_client = boto3.client('s3')
 
 def handler(event, context):
+    print('Event:', event)
     # Get the HTTP method from the event
     http_method = event.get('httpMethod', '')
+    # Registrar el método HTTP y los parámetros de consulta
+    print('HTTP Method:', event.get('httpMethod'))
+    print('Query String Parameters:', event.get('queryStringParameters'))
 
     if http_method == 'GET':
         return generate_download_url(event)
@@ -46,6 +50,7 @@ def generate_upload_url(event):
         }
 
     bucket_name = os.environ['BUCKET_NAME']
+    print('Bucket name:', bucket_name)
 
     try:
         url = s3_client.generate_presigned_url(
@@ -68,6 +73,7 @@ def generate_upload_url(event):
         }
 
     except ClientError as e:
+        print('Error generating upload URL:', e)
         return {
             'statusCode': 500,
             'headers': {
@@ -100,6 +106,7 @@ def generate_download_url(event):
         }
 
     bucket_name = os.environ['BUCKET_NAME']
+    print('Bucket name:', bucket_name)
 
     try:
         url = s3_client.generate_presigned_url(
@@ -118,6 +125,7 @@ def generate_download_url(event):
         }
 
     except ClientError as e:
+        print('Error generating download URL:', e)
         return {
             'statusCode': 500,
             'headers': {

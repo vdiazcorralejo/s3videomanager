@@ -10,11 +10,11 @@ class DynamoTable:
             id,
             table_name=id,
             sort_key=dynamodb.Attribute(
-                name="creationDate",
+                name="Date",
                 type=dynamodb.AttributeType.STRING
             ),
             partition_key=dynamodb.Attribute(
-                name="videoId",
+                name="videoList",
                 type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,  # Cambiar a PROVISIONED si es necesario

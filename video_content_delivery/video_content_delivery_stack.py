@@ -1,16 +1,20 @@
+from email.mime import audio
+import json
 from aws_cdk import (
     Stack,
     aws_s3 as s3,
     aws_lambda as _lambda,
-    aws_apigatewayv2 as apigwv2,
-    aws_apigatewayv2_integrations as integrations,
+    aws_apigateway as apigateway,
+    aws_logs as logs,  # Add this import
     RemovalPolicy,
     CfnOutput,
     Duration,
 )
 from constructs import Construct
+
 from video_content_delivery.lambda_construct import LambdaConstruct
 from video_content_delivery.dynamo_table import DynamoTable
+from video_content_delivery.apigateway_construct import ApiGatewayConstruct
 
 class VideoContentDeliveryStack(Stack):
 
@@ -48,35 +52,100 @@ class VideoContentDeliveryStack(Stack):
         )
         print(f"Lambda GetPresignedUrlFunction ARN: {get_presigned_url_function.lambda_function.function_arn}")
 
+        upload_video_function = LambdaConstruct(
+            self,
+            "MyCustomLambda2",
+            handler_file="index.handler",
+            path_l="video_content_delivery/src/lambda/upload_video",
+            function_name="UploadVideoFunction",
+            table=video_table,
+            environment=environment_l
+        )
+        print(f"Lambda UploadVideoFunction ARN: {upload_video_function.lambda_function.function_arn}")
+
         bucket.grant_read_write(get_presigned_url_function.lambda_function)
+        bucket.grant_read_write(upload_video_function.lambda_function)
 
-        http_api = apigwv2.HttpApi(
-            self, 
-            "VideoApi",
-            api_name="Video Service",
-            cors_preflight={
-                "allow_methods": [apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.PUT],
-                "allow_origins": ['*'],
-                "allow_headers": ['Content-Type'],
-                "max_age": Duration.days(1)
-            }
+        lambda_authorizer = LambdaConstruct(
+            self,
+            "MyCustomAuthorizerVouchers",
+            handler_file="index.handler",
+            path_l="video_content_delivery/src/lambda/auth",
+            function_name="apigatewayAuthorizer"
+        )
+        print(f"Lambda ARN: {lambda_authorizer.lambda_function.function_arn}")
+
+        # Creamos el API Gateway
+        apigateway_video = ApiGatewayConstruct(self, "MyAPIGateway")
+
+        # Añadimos el authorizer al API Gateway
+        authorizer = apigateway_video.add_authorizer_v2("AudioAuthorizer", lambda_authorizer.lambda_function)
+
+        # Añadimos los métodos a la API Gateway
+        upload_files = apigateway_video.api.root.add_resource("upload")
+        get_url = apigateway_video.api.root.add_resource("geturl")
+
+        upload_files.add_method(
+            "PUT", 
+            apigateway.LambdaIntegration(
+                upload_video_function.lambda_function,
+                proxy=False,
+                passthrough_behavior=apigateway.PassthroughBehavior.WHEN_NO_MATCH,
+                integration_responses=[
+                    apigateway.IntegrationResponse(
+                        status_code="200",
+                        response_templates={
+                            "application/json": "$input.body"
+                        }
+                    )
+                ]
+            ),
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(
+                    status_code="200",
+                    response_models={
+                        "application/json": apigateway.Model.EMPTY_MODEL
+                    }
+                )
+            ]
         )
 
-        # Create Lambda integration
-        lambda_integration = integrations.HttpLambdaIntegration(
-            "PresignedUrlIntegration",
-            get_presigned_url_function.lambda_function
+        get_url.add_method(
+            "GET",
+            apigateway.LambdaIntegration(
+                get_presigned_url_function.lambda_function,
+                proxy=False,
+                passthrough_behavior=apigateway.PassthroughBehavior.WHEN_NO_MATCH,
+                integration_responses=[
+                    apigateway.IntegrationResponse(
+                        status_code="200",
+                        response_templates={
+                            "application/json": "$input.body"
+                        }
+                    )
+                ]
+            ),
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+            method_responses=[
+                apigateway.MethodResponse(
+                    status_code="200",
+                    response_models={
+                        "application/json": apigateway.Model.EMPTY_MODEL
+                    }
+                )
+            ]
         )
 
-        # Add routes
-        http_api.add_routes(
-            path="/",
-            methods=[apigwv2.HttpMethod.GET, apigwv2.HttpMethod.PUT],
-            integration=lambda_integration
+        # Add API Gateway URL to CloudFormation outputs
+        CfnOutput(
+            self,
+            "ApiGatewayUrl",
+            value=f"{apigateway_video.api.url}",
+            description="API Gateway endpoint URL",
+            export_name=f"{construct_id}-api-url"
         )
 
-        # Add API URL output
-        CfnOutput(self, "HttpApiUrl", 
-            value=http_api.url,
-            description="HTTP API endpoint URL"
-        )
+
