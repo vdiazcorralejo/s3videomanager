@@ -13,7 +13,7 @@ class LambdaConstruct(Construct):
         self.lambda_function = lambda_.Function(
             self,
             "LambdaFunction",
-            runtime=lambda_.Runtime.PYTHON_3_8,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler=f"{handler_file.split('.')[0]}.handler",
             code=lambda_.Code.from_asset(
                 path=path_l),

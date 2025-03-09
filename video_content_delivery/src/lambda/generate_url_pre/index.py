@@ -12,10 +12,13 @@ def handler(event, context):
     # Registrar el método HTTP y los parámetros de consulta
     print('HTTP Method:', event.get('httpMethod'))
     print('Query String Parameters:', event.get('queryStringParameters'))
+    action = event.get("queryStringParameters", {}).get("action")
 
-    if http_method == 'GET':
+    if action == "list":
+        return list_files()
+    elif action == 'get_download_url':
         return generate_download_url(event)
-    elif http_method == 'PUT':
+    elif action == 'get_upload_url':
         return generate_upload_url(event)
     else:
         return {
@@ -27,7 +30,28 @@ def handler(event, context):
             'body': json.dumps({'error': 'Invalid HTTP method'})
         }
 
+def list_files():
+
+    bucket_name = os.environ['BUCKET_NAME']
+    print('list_files(): Bucket name:', bucket_name)
+    try:
+        response = s3_client.list_objects_v2(Bucket=bucket_name)
+        files = [item["Key"] for item in response.get("Contents", [])]
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"files": files}),
+            "headers": {"Content-Type": "application/json"}
+        }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)}),
+            "headers": {"Content-Type": "application/json"}
+        }
+
 def generate_upload_url(event):
+    print('Generating upload URL')
     if not event.get('queryStringParameters'):
         return {
             'statusCode': 400,
@@ -84,6 +108,7 @@ def generate_upload_url(event):
         }
 
 def generate_download_url(event):
+    print('Generating download URL')
     if not event.get('queryStringParameters'):
         return {
             'statusCode': 400,

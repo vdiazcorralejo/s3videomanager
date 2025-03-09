@@ -52,19 +52,7 @@ class VideoContentDeliveryStack(Stack):
         )
         print(f"Lambda GetPresignedUrlFunction ARN: {get_presigned_url_function.lambda_function.function_arn}")
 
-        upload_video_function = LambdaConstruct(
-            self,
-            "MyCustomLambda2",
-            handler_file="index.handler",
-            path_l="video_content_delivery/src/lambda/upload_video",
-            function_name="UploadVideoFunction",
-            table=video_table,
-            environment=environment_l
-        )
-        print(f"Lambda UploadVideoFunction ARN: {upload_video_function.lambda_function.function_arn}")
-
         bucket.grant_read_write(get_presigned_url_function.lambda_function)
-        bucket.grant_read_write(upload_video_function.lambda_function)
 
         lambda_authorizer = LambdaConstruct(
             self,
@@ -82,35 +70,7 @@ class VideoContentDeliveryStack(Stack):
         authorizer = apigateway_video.add_authorizer_v2("AudioAuthorizer", lambda_authorizer.lambda_function)
 
         # Añadimos los métodos a la API Gateway
-        upload_files = apigateway_video.api.root.add_resource("upload")
         get_url = apigateway_video.api.root.add_resource("geturl")
-
-        upload_files.add_method(
-            "PUT", 
-            apigateway.LambdaIntegration(
-                upload_video_function.lambda_function,
-                proxy=False,
-                passthrough_behavior=apigateway.PassthroughBehavior.WHEN_NO_MATCH,
-                integration_responses=[
-                    apigateway.IntegrationResponse(
-                        status_code="200",
-                        response_templates={
-                            "application/json": "$input.body"
-                        }
-                    )
-                ]
-            ),
-            authorization_type=apigateway.AuthorizationType.CUSTOM,
-            authorizer=authorizer,
-            method_responses=[
-                apigateway.MethodResponse(
-                    status_code="200",
-                    response_models={
-                        "application/json": apigateway.Model.EMPTY_MODEL
-                    }
-                )
-            ]
-        )
 
         get_url.add_method(
             "GET",
@@ -118,6 +78,19 @@ class VideoContentDeliveryStack(Stack):
                 get_presigned_url_function.lambda_function,
                 proxy=False,
                 passthrough_behavior=apigateway.PassthroughBehavior.WHEN_NO_MATCH,
+                request_parameters={
+                    "integration.request.querystring.key": "method.request.querystring.key",
+                    "integration.request.querystring.action": "method.request.querystring.action"
+                },
+                request_templates={
+                    "application/json": json.dumps({
+                        "httpMethod": "$context.httpMethod",
+                        "queryStringParameters": {
+                            "key": "$input.params('key')",
+                            "action": "$input.params('action')"
+                        }
+                    })
+                },
                 integration_responses=[
                     apigateway.IntegrationResponse(
                         status_code="200",
@@ -129,6 +102,10 @@ class VideoContentDeliveryStack(Stack):
             ),
             authorization_type=apigateway.AuthorizationType.CUSTOM,
             authorizer=authorizer,
+            request_parameters={
+                "method.request.querystring.key": False,
+                "method.request.querystring.action": True
+            },
             method_responses=[
                 apigateway.MethodResponse(
                     status_code="200",
