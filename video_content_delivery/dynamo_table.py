@@ -4,34 +4,33 @@ from constructs import Construct
 
 class DynamoTable:
     def __init__(self, scope: Construct, id: str) -> None:
-        # Crear la tabla DynamoDB
+        # Create DynamoDB table
         self.table = dynamodb.Table(
             scope,
             id,
             table_name=id,
-            sort_key=dynamodb.Attribute(
-                name="Date",
-                type=dynamodb.AttributeType.STRING
-            ),
             partition_key=dynamodb.Attribute(
                 name="videoList",
                 type=dynamodb.AttributeType.STRING
             ),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,  # Cambiar a PROVISIONED si es necesario
-            removal_policy=RemovalPolicy.DESTROY,  # Cambiar a RETAIN en producción
+            sort_key=dynamodb.Attribute(
+                name="Date",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
         )
 
-        # Añadir un índice global secundario (GSI) para 'status' y 'creationDate'
+        # Optional: Add GSI if you need to query by uploadDate
         self.table.add_global_secondary_index(
-            index_name="StatusIndex",
+            index_name="UploadDateIndex",
             partition_key=dynamodb.Attribute(
-                name="status",
+                name="videoList",
                 type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name="creationDate",
+                name="uploadDate",
                 type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.ALL
         )
-        

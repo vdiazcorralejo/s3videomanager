@@ -7,16 +7,17 @@ from constructs import Construct
 from video_content_delivery.dynamo_table import DynamoTable
 
 class LambdaConstruct(Construct):
-    def __init__(self, scope: Construct, id: str, handler_file: str, path_l: str, function_name: str,table: DynamoTable= None, environment: str=None, **kwargs):
+    def __init__(self, scope: Construct, id: str, handler_file: str, path_l: str, 
+                 function_name: str, runtime: lambda_.Runtime, table: DynamoTable = None, 
+                 environment: dict = None, **kwargs):
         super().__init__(scope, id)
     
         self.lambda_function = lambda_.Function(
             self,
             "LambdaFunction",
-            runtime=lambda_.Runtime.PYTHON_3_12,
+            runtime=runtime,
             handler=f"{handler_file.split('.')[0]}.handler",
-            code=lambda_.Code.from_asset(
-                path=path_l),
+            code=lambda_.Code.from_asset(path=path_l),
             function_name=function_name,
             environment=environment,
             **kwargs
