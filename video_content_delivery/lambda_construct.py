@@ -1,8 +1,11 @@
 from aws_cdk import (
     aws_lambda as lambda_,
+    aws_logs as logs,
     aws_iam as iam,
     BundlingOptions,
-    Stack)
+    Stack,
+    RemovalPolicy
+)
 from constructs import Construct
 from video_content_delivery.dynamo_table import DynamoTable
 
@@ -12,6 +15,7 @@ class LambdaConstruct(Construct):
                  environment: dict = None, **kwargs):
         super().__init__(scope, id)
     
+        # Create the Lambda function
         self.lambda_function = lambda_.Function(
             self,
             "LambdaFunction",
@@ -23,7 +27,19 @@ class LambdaConstruct(Construct):
             **kwargs
         )
 
-        # Agregar permisos para DynamoDB
+        # Create CloudWatch Log Group
+        log_group = logs.LogGroup(
+            self,
+            f"{function_name}LogGroup",
+            log_group_name=f"/aws/lambda/{function_name}",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+
+        # Grant permissions to Lambda to write logs
+        log_group.grant_write(self.lambda_function)
+
+        # Add DynamoDB permissions if table is provided
         if table:
             table.table.grant_full_access(self.lambda_function)
-            print(f"Granted full access to DynamoDB table: {table.table.table_name}")
+            print(f"LambdaConstruct(): Granted full access to DynamoDB table: {table.table.table_name}")

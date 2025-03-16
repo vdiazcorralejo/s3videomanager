@@ -92,6 +92,9 @@ class VideoContentDeliveryStack(Stack):
         # Grant S3 permissions to the Lambda
         bucket.grant_read(process_video_function.lambda_function)
         
+        # Grant additional S3 permissions for playlist generation
+        bucket.grant_read_write(process_video_function.lambda_function)
+        
         # Add S3 PutObject notification to trigger Lambda
         bucket.add_event_notification(
             s3.EventType.OBJECT_CREATED_PUT,

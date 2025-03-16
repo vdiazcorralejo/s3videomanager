@@ -20,17 +20,3 @@ class DynamoTable:
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
-
-        # Optional: Add GSI if you need to query by uploadDate
-        self.table.add_global_secondary_index(
-            index_name="UploadDateIndex",
-            partition_key=dynamodb.Attribute(
-                name="videoList",
-                type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="uploadDate",
-                type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL
-        )

@@ -7,7 +7,7 @@ s3_client = boto3.client('s3')
 dynamodb = boto3.client('dynamodb')
 
 def get_all_videos(bucket_name):
-    """List all MP4 files in the bucket and format them for DynamoDB"""
+    """List all MP4 files in the bucket and format them for JSON"""
     videos = []
     print(f"Starting to list videos from bucket: {bucket_name}")
     
@@ -19,13 +19,12 @@ def get_all_videos(bucket_name):
             
             for obj in contents:
                 if obj['Key'].lower().endswith('.mp4'):
+                    # Changed to simple JSON structure
                     video_info = {
-                        'M': {
-                            'fileName': {'S': obj['Key']},
-                            'size': {'N': str(obj['Size'])},
-                            'uploadDate': {'S': obj['LastModified'].isoformat()},
-                            'contentType': {'S': 'video/mp4'}
-                        }
+                        'fileName': obj['Key'],
+                        'size': obj['Size'],
+                        'uploadDate': obj['LastModified'].isoformat(),
+                        'contentType': 'video/mp4'
                     }
                     videos.append(video_info)
                     print(f"Added video: {obj['Key']}, Size: {obj['Size']} bytes")
@@ -60,12 +59,17 @@ def handler(event, context):
         print(f"Table: {table_name}")
         print(f"Number of videos to update: {len(video_list)}")
         
+        # Convert the video list to JSON string
+        video_list_json = json.dumps(video_list)
+        
+        # Use a fixed sort key value instead of date
         response = dynamodb.put_item(
             TableName=table_name,
             Item={
                 'videoList': {'S': 'all_videos'},
-                'Date': {'S': datetime.now().isoformat()},
-                'videos': {'L': video_list}
+                'Date': {'S': 'current'},  # Fixed value instead of timestamp
+                'videos': {'S': video_list_json},
+                'lastUpdated': {'S': datetime.now().isoformat()}  # Keep track of last update
             }
         )
         
@@ -77,7 +81,8 @@ def handler(event, context):
             'body': json.dumps({
                 'message': 'Successfully updated video list in DynamoDB',
                 'videoCount': len(video_list),
-                'lastUpdated': datetime.now().isoformat()
+                'lastUpdated': datetime.now().isoformat(),
+                'videos': video_list
             })
         }
     except Exception as e:
