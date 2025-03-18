@@ -36,6 +36,43 @@ def get_all_videos(bucket_name):
     print(f"Total MP4 files found: {len(videos)}")
     return videos
 
+def generate_m3u_playlist(videos, bucket_name):
+    """Generate M3U playlist from video list"""
+    print("\n=== Generating M3U Playlist ===")
+    
+    try:
+        # Create M3U content
+        m3u_content = "#EXTM3U\n"
+        
+        for video in videos:
+            filename = video['fileName']
+            # Generate pre-signed URL for each video with 24h expiration
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': bucket_name,
+                    'Key': filename
+                },
+                ExpiresIn=86400  # 24 hours
+            )
+            m3u_content += f"#EXTINF:-1,{filename}\n{url}\n"
+        
+        # Upload M3U file to S3
+        playlist_key = 'playlist.m3u'
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=playlist_key,
+            Body=m3u_content.encode('utf-8'),
+            ContentType='application/x-mpegurl'
+        )
+        
+        print(f"Playlist generated and uploaded as {playlist_key}")
+        return playlist_key
+        
+    except Exception as e:
+        print(f"Error generating playlist: {str(e)}")
+        raise e
+
 def handler(event, context):
     print("=== Lambda Execution Started ===")
     print(f"Event received: {json.dumps(event, indent=2)}")
@@ -54,6 +91,9 @@ def handler(event, context):
         print("\n=== Getting Video List ===")
         video_list = get_all_videos(bucket)
         
+        # Generate M3U playlist
+        playlist_key = generate_m3u_playlist(video_list, bucket)
+        
         table_name = os.environ['TABLE_NAME']
         print(f"\n=== Updating DynamoDB ===")
         print(f"Table: {table_name}")
@@ -62,15 +102,25 @@ def handler(event, context):
         # Convert the video list to JSON string
         video_list_json = json.dumps(video_list)
         
-        # Use a fixed sort key value instead of date
         response = dynamodb.put_item(
             TableName=table_name,
             Item={
                 'videoList': {'S': 'all_videos'},
-                'Date': {'S': 'current'},  # Fixed value instead of timestamp
+                'Date': {'S': 'current'},
                 'videos': {'S': video_list_json},
-                'lastUpdated': {'S': datetime.now().isoformat()}  # Keep track of last update
+                'lastUpdated': {'S': datetime.now().isoformat()},
+                'playlistKey': {'S': playlist_key}  # Add playlist key to DynamoDB
             }
+        )
+        
+        # Generate playlist URL
+        playlist_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket,
+                'Key': playlist_key
+            },
+            ExpiresIn=86400
         )
         
         print(f"\n=== DynamoDB Update Complete ===")
@@ -82,7 +132,8 @@ def handler(event, context):
                 'message': 'Successfully updated video list in DynamoDB',
                 'videoCount': len(video_list),
                 'lastUpdated': datetime.now().isoformat(),
-                'videos': video_list
+                'videos': video_list,
+                'playlistUrl': playlist_url
             })
         }
     except Exception as e:
