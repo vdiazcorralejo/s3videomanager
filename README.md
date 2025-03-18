@@ -1,58 +1,41 @@
+# Video Content Delivery System
 
-# Welcome to your CDK Python project!
+A serverless video content delivery system built with AWS CDK in Python. This project implements a secure and scalable architecture for uploading, storing, and streaming video content.
 
-This is a blank project for CDK development with Python.
+## Architecture
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+The system consists of the following AWS components:
 
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+- **S3 Bucket**: Stores video files with versioning enabled
+- **DynamoDB**: Tracks video metadata and playlist information
+- **Lambda Functions**:
+  - `GetPresignedUrlFunction`: Generates pre-signed URLs for upload/download
+  - `ProcessVideoFunction`: Processes videos when uploaded and generates playlists
+  - `ApiGatewayAuthorizer`: Handles API authorization
+- **API Gateway**: Provides REST API endpoints with custom authorization
+- **CloudWatch**: Handles logging and monitoring
 
-To manually create a virtualenv on MacOS and Linux:
+## Features
 
-```
-$ python -m venv .venv
-```
+- Secure video upload/download via pre-signed URLs
+- Custom token-based authorization
+- Automatic video processing on upload
+- M3U playlist generation
+- CORS support for web applications
+- Comprehensive logging system
+- Automatic cleanup of resources on stack deletion
 
-After the init process completes and the virtualenv is created, you can use the following
-step to activate your virtualenv.
+## Prerequisites
 
-```
-$ source .venv/bin/activate
-```
+- AWS CLI configured
+- Python 3.12 or higher
+- AWS CDK CLI
+- Node.js (for CDK)
 
-If you are a Windows platform, you would activate the virtualenv like this:
+## Installation
 
-```
-% .venv\Scripts\activate.bat
-```
-
-Once the virtualenv is activated, you can install the required dependencies.
-
-```
-$ pip install -r requirements.txt
-```
-
-At this point you can now synthesize the CloudFormation template for this code.
-
-```
-$ cdk synth
-```
-
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
-
-## Useful commands
-
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
-
-Enjoy!
+1. Clone the repository
+2. Create and activate a virtual environment:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: [activate.bat](http://_vscodecontentref_/1)
