@@ -1,4 +1,3 @@
-from email.mime import audio
 import json
 from aws_cdk import (
     Stack,

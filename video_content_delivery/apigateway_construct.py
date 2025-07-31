@@ -53,7 +53,7 @@ class ApiGatewayConstruct(Construct):
 
     def add_authorizer(self, authorizer_name: str, authorizer_function: _lambda.Function) -> apigateway.CfnAuthorizer:
         """Método para añadir un authorizer a bajo nivel"""
-         # Obtener la región del stack
+        # Obtener la región del stack
         region = Stack.of(self).region
         authorizer = apigateway.CfnAuthorizer(
             self, authorizer_name,
