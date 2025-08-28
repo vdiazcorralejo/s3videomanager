@@ -44,7 +44,18 @@ def handler(event, context):
 
 def list_files():
     print("\n=== Listing Files from DynamoDB ===")
-    table_name = os.environ['TABLE_NAME']
+    table_name = os.environ.get('TABLE_NAME')
+    if not table_name:
+        print("Error: TABLE_NAME environment variable not set")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Server configuration error"}),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
+        }
+    
     print(f"Table name: {table_name}")
     
     try:
@@ -92,7 +103,7 @@ def list_files():
         print(f"Error message: {str(e)}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": str(e)}),
+            "body": json.dumps({"error": "Failed to retrieve video list"}),
             "headers": {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*"
@@ -126,7 +137,30 @@ def generate_upload_url(event):
             'body': json.dumps({'error': 'Missing key parameter'})
         }
 
-    bucket_name = os.environ['BUCKET_NAME']
+    # Validate key to prevent path traversal and ensure it's a valid filename
+    if '..' in key or key.startswith('/') or not key.strip():
+        print(f"Error: Invalid key parameter: {key}")
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({'error': 'Invalid key parameter'})
+        }
+
+    bucket_name = os.environ.get('BUCKET_NAME')
+    if not bucket_name:
+        print("Error: BUCKET_NAME environment variable not set")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({'error': 'Server configuration error'})
+        }
+
     print(f"Generating presigned URL for bucket: {bucket_name}, key: {key}")
 
     try:
@@ -160,7 +194,7 @@ def generate_upload_url(event):
                 'Access-Control-Allow-Origin': '*',
                 'Content-Type': 'application/json'
             },
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': 'Failed to generate upload URL'})
         }
 
 def generate_download_url(event):
@@ -188,7 +222,30 @@ def generate_download_url(event):
             'body': json.dumps({'error': 'Missing key parameter'})
         }
 
-    bucket_name = os.environ['BUCKET_NAME']
+    # Validate key to prevent path traversal and ensure it's a valid filename
+    if '..' in key or key.startswith('/') or not key.strip():
+        print(f"Error: Invalid key parameter: {key}")
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({'error': 'Invalid key parameter'})
+        }
+
+    bucket_name = os.environ.get('BUCKET_NAME')
+    if not bucket_name:
+        print("Error: BUCKET_NAME environment variable not set")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({'error': 'Server configuration error'})
+        }
+
     print('Bucket name:', bucket_name)
 
     try:
@@ -215,5 +272,5 @@ def generate_download_url(event):
                 'Access-Control-Allow-Origin': '*',
                 'Content-Type': 'application/json'
             },
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': 'Failed to generate download URL'})
         }

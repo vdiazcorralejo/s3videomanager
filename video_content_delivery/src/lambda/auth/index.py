@@ -1,4 +1,5 @@
 import json
+import os
 
 def handler(event, context):
     token = event.get('authorizationToken')
@@ -9,8 +10,8 @@ def handler(event, context):
         print('ERROR: no token received!!')
         return generate_policy('user', 'Deny', event.get('methodArn'))
     
-    # expected_token = os.environ.get('EXPECTED_TOKEN')
-    expected_token = "valid-token"
+    # Use environment variable for expected token, fallback to default for backwards compatibility
+    expected_token = os.environ.get('EXPECTED_TOKEN', 'valid-token')
 
     if token == expected_token:
         return generate_policy('user', 'Allow', event.get('methodArn'))

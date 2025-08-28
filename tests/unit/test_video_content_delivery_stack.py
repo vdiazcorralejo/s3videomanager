@@ -49,8 +49,8 @@ def test_lambda_functions_created():
     template = assertions.Template.from_stack(stack)
 
     # ASSERT
-    # Verificar que se crean las funciones Lambda
-    template.resource_count_is("AWS::Lambda::Function", 3)  # Verifica que hay 3 funciones Lambda
+    # Verificar que se crean las funciones Lambda (includes CloudWatch log group functions)
+    template.resource_count_is("AWS::Lambda::Function", 5)  # Verifica que hay 5 funciones Lambda
     
     # Verificar la función GetPresignedUrl
     template.has_resource_properties("AWS::Lambda::Function", {

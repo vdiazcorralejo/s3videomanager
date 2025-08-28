@@ -1,4 +1,3 @@
-from email.mime import audio
 import json
 from aws_cdk import (
     Stack,
@@ -22,12 +21,13 @@ class VideoContentDeliveryStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-          # Crear la tabla DynamoDB usando la clase
+        # Create the DynamoDB table for storing video metadata
         table_name = "listOfVideoFiles"
         video_table = DynamoTable(self, table_name)
         print(f"Table ARN: {video_table.table.table_arn}")
         print(f"Table NAME: {video_table.table.table_name}")
 
+        # Create S3 bucket for video storage with proper security and CORS configuration
         bucket = s3.Bucket(self, "VideoBucket",
                            versioned=True,
                            bucket_name="video-content-delivery-bucket",
@@ -46,13 +46,14 @@ class VideoContentDeliveryStack(Stack):
                            )]
                            )
         
+        # Environment variables for all Lambda functions
         environment_l = {
             "TABLE_NAME": table_name,
             "REGION": "eu-west-1",
             "BUCKET_NAME": bucket.bucket_name,
         }
         
-        # Creamos las lambdas que vamos a usar
+        # Create Lambda function for generating presigned URLs
         get_presigned_url_function = LambdaConstruct(
             self,
             "GetPresignedUrlFunction",
@@ -65,8 +66,10 @@ class VideoContentDeliveryStack(Stack):
         )
         print(f"Lambda GetPresignedUrlFunction ARN: {get_presigned_url_function.lambda_function.function_arn}")
 
+        # Grant S3 permissions to the presigned URL function
         bucket.grant_read_write(get_presigned_url_function.lambda_function)
 
+        # Create Lambda authorizer for API Gateway authentication
         lambda_authorizer = LambdaConstruct(
             self,
             "MyCustomAuthorizer",
@@ -77,7 +80,7 @@ class VideoContentDeliveryStack(Stack):
         )
         print(f"Lambda ARN: {lambda_authorizer.lambda_function.function_arn}")
 
-        # Create the trigger Lambda
+        # Create Lambda function for processing uploaded videos
         process_video_function = LambdaConstruct(
             self,
             "ProcessVideoFunction",
@@ -89,26 +92,26 @@ class VideoContentDeliveryStack(Stack):
             environment=environment_l
         )
 
-        # Grant S3 permissions to the Lambda
+        # Grant S3 permissions to the video processing Lambda
         bucket.grant_read(process_video_function.lambda_function)
         
         # Grant additional S3 permissions for playlist generation
         bucket.grant_read_write(process_video_function.lambda_function)
         
-        # Add S3 PutObject notification to trigger Lambda
+        # Configure S3 to trigger Lambda when MP4 files are uploaded
         bucket.add_event_notification(
             s3.EventType.OBJECT_CREATED_PUT,
             s3n.LambdaDestination(process_video_function.lambda_function),
-            s3.NotificationKeyFilter(suffix=".mp4")  # Optional: filter for MP4 files only
+            s3.NotificationKeyFilter(suffix=".mp4")  # Only trigger for MP4 files
         )
 
-        # Creamos el API Gateway
+        # Create API Gateway for REST endpoints
         apigateway_video = ApiGatewayConstruct(self, "MyAPIGateway")
 
-        # Añadimos el authorizer al API Gateway
+        # Add custom authorizer to API Gateway
         authorizer = apigateway_video.add_authorizer_v2("AudioAuthorizer", lambda_authorizer.lambda_function)
 
-        # Añadimos los métodos a la API Gateway
+        # Create the /geturl resource and methods
         get_url = apigateway_video.api.root.add_resource("geturl")
 
         get_url.add_method(

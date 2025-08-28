@@ -94,7 +94,15 @@ def handler(event, context):
         # Generate M3U playlist
         playlist_key = generate_m3u_playlist(video_list, bucket)
         
-        table_name = os.environ['TABLE_NAME']
+        table_name = os.environ.get('TABLE_NAME')
+        if not table_name:
+            print("Error: TABLE_NAME environment variable not set")
+            return {
+                'statusCode': 500,
+                'body': json.dumps({
+                    'error': 'Server configuration error'
+                })
+            }
         print(f"\n=== Updating DynamoDB ===")
         print(f"Table: {table_name}")
         print(f"Number of videos to update: {len(video_list)}")
