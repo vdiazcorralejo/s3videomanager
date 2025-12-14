@@ -101,12 +101,15 @@ class VideoContentDeliveryStack(Stack):
         # Configure S3 to trigger Lambda when MP4 files are uploaded
         bucket.add_event_notification(
             s3.EventType.OBJECT_CREATED_PUT,
-            s3n.LambdaDestination(process_video_function.lambda_function),
+            s3n.LambdaDestination(process_video_function.lambda_function),  # type: ignore[arg-type]
             s3.NotificationKeyFilter(suffix=".mp4")  # Only trigger for MP4 files
         )
 
         # Create API Gateway for REST endpoints
         apigateway_video = ApiGatewayConstruct(self, "MyAPIGateway")
+        
+        # Add error responses for better error handling
+        apigateway_video.add_error_responses()
 
         # Add custom authorizer to API Gateway
         authorizer = apigateway_video.add_authorizer_v2("AudioAuthorizer", lambda_authorizer.lambda_function)
@@ -168,42 +171,38 @@ class VideoContentDeliveryStack(Stack):
             ]
         )
 
-        # Add OPTIONS method for CORS
-        get_url.add_method(
-            "OPTIONS",
-            apigateway.MockIntegration(
-                integration_responses=[{
-                    'statusCode': '200',
-                    'responseParameters': {
-                        'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-                        'method.response.header.Access-Control-Allow-Methods': "'GET,OPTIONS'",
-                        'method.response.header.Access-Control-Allow-Origin': "'*'"
-                    }
-                }],
-                passthrough_behavior=apigateway.PassthroughBehavior.NEVER,
-                request_templates={
-                    "application/json": "{\"statusCode\": 200}"
-                }
-            ),
-            method_responses=[
-                apigateway.MethodResponse(
-                    status_code="200",
-                    response_parameters={
-                        'method.response.header.Access-Control-Allow-Headers': True,
-                        'method.response.header.Access-Control-Allow-Methods': True,
-                        'method.response.header.Access-Control-Allow-Origin': True
-                    }
-                )
-            ]
-        )
+        # Note: OPTIONS method is automatically added by default_cors_preflight_options in ApiGatewayConstruct
 
-        # Add API Gateway URL to CloudFormation outputs
+        # Add CloudFormation outputs for easy access
         CfnOutput(
             self,
             "ApiGatewayUrl",
             value=f"{apigateway_video.api.url}",
             description="API Gateway endpoint URL",
             export_name=f"{construct_id}-api-url"
+        )
+        
+        CfnOutput(
+            self,
+            "GetUrlEndpoint",
+            value=f"{apigateway_video.api.url}geturl",
+            description="GetURL endpoint for video operations"
+        )
+        
+        CfnOutput(
+            self,
+            "BucketName",
+            value=bucket.bucket_name,
+            description="S3 bucket name for video storage",
+            export_name=f"{construct_id}-bucket-name"
+        )
+        
+        CfnOutput(
+            self,
+            "DynamoDBTableName",
+            value=video_table.table.table_name,
+            description="DynamoDB table name for video metadata",
+            export_name=f"{construct_id}-table-name"
         )
 
 

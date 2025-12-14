@@ -8,15 +8,16 @@ from aws_cdk import (
 )
 from constructs import Construct
 from video_content_delivery.dynamo_table import DynamoTable
+from typing import Optional, Dict, Any
 
 class LambdaConstruct(Construct):
     def __init__(self, scope: Construct, id: str, handler_file: str, path_l: str, 
-                 function_name: str, runtime: lambda_.Runtime, table: DynamoTable = None, 
-                 environment: dict = None, **kwargs):
+                 function_name: str, runtime: lambda_.Runtime, table: Optional[DynamoTable] = None, 
+                 environment: Optional[Dict[str, str]] = None, **kwargs: Any) -> None:
         super().__init__(scope, id)
     
         # Create the Lambda function
-        self.lambda_function = lambda_.Function(
+        self.lambda_function: lambda_.IFunction = lambda_.Function(
             self,
             "LambdaFunction",
             runtime=runtime,
