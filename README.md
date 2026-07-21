@@ -32,6 +32,29 @@ Data flows from client → API Gateway (authenticated) → Lambda → S3/DynamoD
 - **Test**: Execute unit tests with `pytest` (CDK assertions in `tests/unit/test_video_content_delivery_stack.py` verify resource properties)
 - **Debug**: Check CloudWatch logs for Lambda executions; use `cdk diff` to preview changes before deploy
 
+## AI Prompt Tag Convention (Team)
+
+Use one or more tags at the top of every AI coding request to keep context focused and reduce token usage.
+
+- `#infra`: CDK/IAM/API Gateway/S3/DynamoDB changes
+- `#lambda`: Lambda handler/runtime behavior changes
+- `#test`: Unit tests and regression coverage changes
+- `#fast`: Small/repetitive tasks that should use minimal context
+
+Tag to profile mapping:
+
+- `#infra` -> `.github/instructions/infra.instructions.md`
+- `#lambda` -> `.github/instructions/lambda.instructions.md`
+- `#test` -> `.github/instructions/tests.instructions.md`
+- `#fast` -> `.github/copilot-instructions.fast.md`
+
+Prompt examples:
+
+- `#infra #test Add S3 lifecycle rule for processed files and include CDK assertions.`
+- `#lambda Fix validation for missing video key and keep response contract stable.`
+- `#test Add regression test for token authorizer invalid token branch.`
+- `#fast Rename one variable in process_video handler without refactoring.`
+
 ## Conventions
 
 - **Naming**: Lambda functions use descriptive names like `GetPresignedUrlFunction`; table name matches construct ID

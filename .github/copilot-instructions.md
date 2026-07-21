@@ -1,39 +1,65 @@
-# AI Coding Guidelines for s3videomanager
+# Copilot Instructions: video-content-delivery
 
-## Architecture Overview
-This is a serverless video content delivery system built with AWS CDK in Python. The core architecture includes:
-- **S3 Bucket** (`video-content-delivery-bucket`): Stores video files with versioning; triggers video processing on `.mp4` uploads
-- **DynamoDB Table** (`listOfVideoFiles`): Tracks video metadata with partition key `videoList` (string) and sort key `Date` (string)
-- **Lambda Functions**: 
-  - `GetPresignedUrlFunction`: Generates secure upload/download URLs (see `video_content_delivery/src/lambda/generate_url_pre/index.py`)
-  - `ProcessVideoFunction`: Processes uploaded videos and generates M3U playlists (see `video_content_delivery/src/lambda/process_video/index.py`)
-  - `apigatewayAuthorizer`: Custom token-based authentication (see `video_content_delivery/src/lambda/auth/index.py`)
-- **API Gateway**: REST API with custom authorizer; `/geturl` endpoint for presigned URLs with CORS support for `http://localhost:3000`
+## Goal
+Build and maintain a serverless video delivery backend on AWS CDK (Python) with secure uploads/downloads and predictable operations.
 
-Data flows from client → API Gateway (authenticated) → Lambda → S3/DynamoDB, with S3 events triggering video processing.
+## Instruction Profiles
+- Base profile (this file): always-on, minimal global context.
+- Task-specific profiles:
+  - `.github/instructions/infra.instructions.md` for CDK/IAM/API/S3/DynamoDB changes.
+  - `.github/instructions/lambda.instructions.md` for Lambda handlers and API behavior.
+  - `.github/instructions/tests.instructions.md` for test creation and updates.
+- Fast profile:
+  - `.github/copilot-instructions.fast.md` for low-token, high-speed sessions.
 
-## Key Patterns
-- **Constructs for Modularity**: Use `LambdaConstruct`, `DynamoTable`, `ApiGatewayConstruct` for reusable AWS resources (see `video_content_delivery/` directory)
-- **Environment Variables**: Pass config like `TABLE_NAME`, `BUCKET_NAME`, `REGION` to Lambdas (example in `video_content_delivery_stack.py`)
-- **Permissions**: Grant minimal IAM permissions; e.g., `bucket.grant_read_write(lambda_function)` for S3 access
-- **Logging**: All Lambdas and API Gateway log to CloudWatch with 1-week retention (see `LambdaConstruct` and `ApiGatewayConstruct`)
-- **CORS Configuration**: S3 bucket allows `PUT`, `GET`, `POST` from `http://localhost:3000` with exposed `ETag` header
+## Routing
+- If task touches infrastructure/resources, prioritize infra profile.
+- If task touches handler/runtime logic, prioritize lambda profile.
+- If task is test-focused, prioritize tests profile.
+- If task is simple or repetitive, use fast profile.
+- When multiple profiles apply, combine only the minimum required sections.
 
-## Development Workflows
-- **Setup**: Create venv with `python -m venv .venv`, activate, install deps from `requirements.txt` and `requirements-dev.txt`
-- **Build/Synth**: Use `cdk synth` to generate CloudFormation templates (app defined in `app.py`)
-- **Deploy**: Run `cdk deploy` to provision AWS resources; outputs include API Gateway URL
-- **Test**: Execute unit tests with `pytest` (CDK assertions in `tests/unit/test_video_content_delivery_stack.py` verify resource properties)
-- **Debug**: Check CloudWatch logs for Lambda executions; use `cdk diff` to preview changes before deploy
+## Architecture (High Signal)
+- S3 bucket: stores videos, versioned, upload events trigger processing for `.mp4`.
+- DynamoDB table: `listOfVideoFiles` with PK `videoList` and SK `Date`.
+- Lambda functions:
+  - presigned URL generation
+  - video processing and playlist generation
+  - API Gateway token authorizer
+- API Gateway: authenticated endpoint for URL generation with CORS for local frontend.
 
-## Conventions
-- **Naming**: Lambda functions use descriptive names like `GetPresignedUrlFunction`; table name matches construct ID
-- **Error Handling**: Lambdas return JSON responses with `statusCode`, `headers` (including CORS), and `body` (see `generate_url_pre/index.py`)
-- **Dependencies**: Use `boto3` for AWS SDK calls in Lambdas; CDK constructs import from `aws_cdk`
-- **File Structure**: Lambda code in `video_content_delivery/src/lambda/{function_name}/index.py`; tests mirror stack structure
+## Source of Truth
+- CDK app entry: `app.py`
+- Stack and constructs: `video_content_delivery/`
+- Lambdas: `video_content_delivery/src/lambda/`
+- Unit tests: `tests/unit/test_video_content_delivery_stack.py`
 
-## Integration Points
-- **External Services**: Relies on AWS S3, DynamoDB, Lambda, API Gateway, CloudWatch; no third-party APIs
-- **Cross-Component Communication**: API Gateway integrates with Lambdas via `LambdaIntegration`; S3 events notify Lambdas via `LambdaDestination`
-- **Security**: Custom authorizer validates tokens; S3 blocks public access; pre-signed URLs enable secure client-side uploads/downloads</content>
-<filePath">/home/vdiaz/Documents/projects/s3videomanager/s3videomanager/.github/copilot-instructions.md
+## Coding Rules
+- Keep changes minimal and scoped; do not refactor unrelated code.
+- Preserve existing public interfaces unless change is required.
+- Prefer explicit error handling with stable JSON responses (`statusCode`, `headers`, `body`).
+- Keep IAM least-privilege; grant only required actions/resources.
+- Use environment variables for runtime config (`TABLE_NAME`, `BUCKET_NAME`, `REGION`).
+- Maintain CORS consistency between API Gateway and S3 config.
+- Add or update tests for behavioral changes in infra or Lambda logic.
+
+## Workflow
+- Setup: create venv, install `requirements.txt` and `requirements-dev.txt`.
+- Validate infra changes with:
+  - `cdk diff`
+  - `cdk synth`
+- Run tests with `pytest`.
+- Prefer fixing root causes over patching symptoms.
+
+## Security and Operations
+- Never hardcode secrets or tokens.
+- Keep S3 private; rely on presigned URLs.
+- Validate auth paths when touching API or authorizer logic.
+- Check CloudWatch logs for runtime debugging and regressions.
+
+## PR/Change Quality Checklist
+- What changed and why is clear.
+- Impacted AWS resources are identified.
+- Backward compatibility is considered.
+- Tests or validation steps are included.
+- Risks and rollback notes are stated for infra-impacting changes.
