@@ -1,6 +1,7 @@
 import json
 from aws_cdk import (
     Stack,
+    Duration,
     aws_s3 as s3,
     aws_lambda as _lambda,
     aws_apigateway as apigateway,
@@ -45,6 +46,27 @@ class VideoContentDeliveryStack(Stack):
                                exposed_headers=["ETag"]
                            )]
                            )
+
+        # Lifecycle rules for cost optimisation (Fase 0.6)
+        bucket.add_lifecycle_rule(
+            id='IntelligentTiering',
+            transitions=[
+                s3.Transition(
+                    storage_class=s3.StorageClass.INTELLIGENT_TIERING,
+                    transition_after=Duration.days(0)
+                )
+            ]
+        )
+        bucket.add_lifecycle_rule(
+            id='ArchiveOldVideos',
+            transitions=[
+                s3.Transition(
+                    storage_class=s3.StorageClass.GLACIER_INSTANT_RETRIEVAL,
+                    transition_after=Duration.days(90)
+                )
+            ],
+            prefix='videos/'
+        )
 
         # Environment variables for all Lambda functions
         environment_l = {

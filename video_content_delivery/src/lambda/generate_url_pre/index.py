@@ -18,6 +18,9 @@ PLAYBACK_CONTENT_TYPES = {
     '.webm': 'video/webm',
 }
 
+# Only these extensions are accepted for upload.
+ALLOWED_UPLOAD_EXTENSIONS = {'.mp4', '.wmv', '.avi', '.mov', '.m4v'}
+
 
 def _response(status_code, payload):
     return {
@@ -157,6 +160,17 @@ def list_files():
             }
         }
 
+def _validate_upload_extension(key: str):
+    ext = os.path.splitext(key)[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        print(f"Error: Extension '{ext}' not allowed")
+        return _response(400, {
+            'error': f'Extension "{ext}" not allowed',
+            'allowedExtensions': sorted(ALLOWED_UPLOAD_EXTENSIONS)
+        })
+    return None
+
+
 def generate_upload_url(event):
     print("\n=== Generating Upload URL ===")
     print(f"Event parameters: {json.dumps(event.get('queryStringParameters'), indent=2)}")
@@ -168,6 +182,10 @@ def generate_upload_url(event):
     key, key_error = _get_validated_key(event)
     if key_error:
         return key_error
+
+    ext_error = _validate_upload_extension(key)
+    if ext_error:
+        return ext_error
 
     bucket_name, bucket_error = _get_bucket_name()
     if bucket_error:

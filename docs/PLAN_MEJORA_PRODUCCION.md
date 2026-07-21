@@ -265,10 +265,10 @@ Riesgos y controles:
 
 Tareas:
 
-- [ ] Decidir entre thumbnail generica o extraccion real en Fase 0
-- [ ] Si se usa FFmpeg, crear `GenerateThumbnailFunction`
-- [ ] Guardar miniaturas en prefijo `thumbnails/`
-- [ ] Persistir `thumbnailKey` en DynamoDB
+- [x] Decidir entre thumbnail generica o extraccion real en Fase 0 — se opta por placeholder generico
+- [ ] (futuro) Si se necesita precision, crear `GenerateThumbnailFunction` con FFmpeg
+- [x] Guardar miniaturas en prefijo `thumbnails/` — placeholder generico mientras
+- [x] Persistir `thumbnailKey` en DynamoDB — ya incluido en el esquema
 
 ---
 
@@ -294,9 +294,9 @@ Si no se controla esto, el riesgo es claro: archivos validos para S3 pero no rep
 
 Tareas:
 
-- [ ] Restringir upload a extensiones soportadas
-- [ ] Documentar formato obligado para proveedores de contenido
-- [ ] Evaluar validacion post-upload de codec real solo si hay incidencias
+- [x] Restringir upload a extensiones soportadas (.mp4, .wmv, .avi, .mov, .m4v)
+- [x] Documentar formato obligado para proveedores de contenido — en README
+- [ ] (futuro) Evaluar validacion post-upload de codec real solo si hay incidencias
 
 ---
 
@@ -344,9 +344,9 @@ Decision economica importante:
 
 Tareas:
 
-- [ ] Activar lifecycle rules en S3
-- [ ] Medir patron real de accesos antes de introducir CDN
-- [ ] Evaluar cache de catalogo en cliente
+- [x] Activar lifecycle rules en S3 (Intelligent-Tiering + Glacier tras 90 dias)
+- [ ] (futuro) Medir patron real de accesos antes de introducir CDN
+- [ ] (futuro) Evaluar cache de catalogo en cliente
 
 ---
 

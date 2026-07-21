@@ -11,6 +11,10 @@ dynamodb = boto3.client("dynamodb")
 MAX_PAGE_SIZE = 20
 DEFAULT_PAGE_SIZE = 20
 
+# Generic placeholder thumbnail shown when no real thumbnail has been generated.
+# Replace this URL with a real hosted image or upload a placeholder to S3.
+DEFAULT_THUMBNAIL_URL = "https://via.placeholder.com/320x180?text=Video"
+
 HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -80,9 +84,10 @@ def _n(item: dict[str, Any], key: str, default: int = 0) -> int:
 
 def _build_video(item: dict[str, Any], bucket_name: str) -> dict[str, Any]:
     thumbnail_key = _s(item, "thumbnailKey")
-    thumbnail_url = None
     if thumbnail_key:
         thumbnail_url = f"https://{bucket_name}.s3.amazonaws.com/{thumbnail_key}"
+    else:
+        thumbnail_url = DEFAULT_THUMBNAIL_URL
 
     return {
         "id": _s(item, "videoId"),
