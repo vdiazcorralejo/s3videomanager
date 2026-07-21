@@ -155,11 +155,11 @@ Requisitos del endpoint:
 
 Tareas:
 
-- [ ] Crear Lambda `CatalogFunction`
-- [ ] Crear `GET /catalog` protegido por JWT
-- [ ] Redisenar DynamoDB a item por video
-- [ ] Anadir GSI `StatusIndex`
-- [ ] Anadir paginacion con `LastEvaluatedKey`
+- [x] Crear Lambda `CatalogFunction`
+- [x] Crear `GET /catalog` protegido por JWT
+- [x] Redisenar DynamoDB a item por video
+- [x] Anadir GSI `StatusIndex`
+- [x] Anadir paginacion con `LastEvaluatedKey`
 
 ---
 

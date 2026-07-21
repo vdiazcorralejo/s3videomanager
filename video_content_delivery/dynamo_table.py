@@ -14,15 +14,14 @@ class DynamoTable:
                 type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name="Date",
+                name="videoId",
                 type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
-        # Keep the existing PK/SK to avoid replacing the table in this phase.
-        # The catalog flow will use videoList='catalog' and Date as the item identifier.
+        # Catalog query index by status (ready/failed/processing).
         self.table.add_global_secondary_index(
             index_name="StatusIndex",
             partition_key=dynamodb.Attribute(
@@ -36,6 +35,7 @@ class DynamoTable:
             projection_type=dynamodb.ProjectionType.ALL
         )
 
+        # Catalog query index by upload date for recent-first use cases.
         self.table.add_global_secondary_index(
             index_name="UploadDateIndex",
             partition_key=dynamodb.Attribute(

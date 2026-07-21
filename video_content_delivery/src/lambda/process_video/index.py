@@ -30,12 +30,13 @@ def _build_catalog_item(bucket_name, key, size_bytes):
 
     return {
         'videoList': {'S': 'catalog'},
-        'Date': {'S': now},
         'videoId': {'S': video_id},
         'title': {'S': title},
         'fileName': {'S': file_name},
         'contentType': {'S': 'video/mp4'},
         'sizeBytes': {'N': str(size_bytes)},
+        'durationSeconds': {'N': '0'},
+        'thumbnailKey': {'S': ''},
         'uploadDate': {'S': now},
         'updatedAt': {'S': now},
         'status': {'S': 'ready'},

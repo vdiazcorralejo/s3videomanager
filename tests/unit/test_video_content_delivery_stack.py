@@ -37,7 +37,25 @@ def test_dynamodb_table_created():
     # ASSERT
     template.has_resource_properties("AWS::DynamoDB::Table", {
         "TableName": "listOfVideoFiles",
-        "BillingMode": "PAY_PER_REQUEST"
+        "BillingMode": "PAY_PER_REQUEST",
+        "KeySchema": [
+            {
+                "AttributeName": "videoList",
+                "KeyType": "HASH"
+            },
+            {
+                "AttributeName": "videoId",
+                "KeyType": "RANGE"
+            }
+        ],
+        "GlobalSecondaryIndexes": [
+            {
+                "IndexName": "StatusIndex"
+            },
+            {
+                "IndexName": "UploadDateIndex"
+            }
+        ]
     })
 
 def test_lambda_functions_created():
@@ -50,13 +68,25 @@ def test_lambda_functions_created():
 
     # ASSERT
     # Verificar que se crean las funciones Lambda (includes CloudWatch log group functions)
-    template.resource_count_is("AWS::Lambda::Function", 5)  # Verifica que hay 5 funciones Lambda
+    template.resource_count_is("AWS::Lambda::Function", 6)  # 4 app lambdas + 2 auto-delete helper lambdas
     
     # Verificar la función GetPresignedUrl
     template.has_resource_properties("AWS::Lambda::Function", {
         "Handler": "index.handler",
         "Runtime": "python3.12",
         "FunctionName": "GetPresignedUrlFunction",
+        "Environment": {
+            "Variables": {
+                "TABLE_NAME": "listOfVideoFiles",
+                "REGION": "eu-west-1"
+            }
+        }
+    })
+
+    template.has_resource_properties("AWS::Lambda::Function", {
+        "Handler": "index.handler",
+        "Runtime": "python3.12",
+        "FunctionName": "CatalogFunction",
         "Environment": {
             "Variables": {
                 "TABLE_NAME": "listOfVideoFiles",
@@ -86,6 +116,10 @@ def test_api_gateway_created():
     template.has_resource_properties("AWS::ApiGateway::Method", {
         "HttpMethod": "GET",
         "AuthorizationType": "CUSTOM"
+    })
+
+    template.has_resource_properties("AWS::ApiGateway::Resource", {
+        "PathPart": "catalog"
     })
 
 def test_authorizer_created():

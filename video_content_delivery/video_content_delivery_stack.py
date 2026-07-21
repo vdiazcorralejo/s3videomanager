@@ -4,11 +4,9 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_lambda as _lambda,
     aws_apigateway as apigateway,
-    aws_logs as logs,  # Add this import
     aws_s3_notifications as s3n,  # Add this import
     RemovalPolicy,
     CfnOutput,
-    Duration,
 )
 from constructs import Construct
 
@@ -87,6 +85,18 @@ class VideoContentDeliveryStack(Stack):
             handler_file="index.handler",
             path_l="video_content_delivery/src/lambda/process_video",
             function_name="ProcessVideoFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            table=video_table,
+            environment=environment_l
+        )
+
+        # Create Lambda function for catalog retrieval
+        catalog_function = LambdaConstruct(
+            self,
+            "CatalogFunction",
+            handler_file="index.handler",
+            path_l="video_content_delivery/src/lambda/catalog",
+            function_name="CatalogFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
             table=video_table,
             environment=environment_l
@@ -171,6 +181,20 @@ class VideoContentDeliveryStack(Stack):
             ]
         )
 
+        # Create the /catalog resource and method (protected by JWT authorizer)
+        catalog = apigateway_video.api.root.add_resource("catalog")
+        catalog.add_method(
+            "GET",
+            apigateway.LambdaIntegration(catalog_function.lambda_function),
+            authorization_type=apigateway.AuthorizationType.CUSTOM,
+            authorizer=authorizer,
+            request_parameters={
+                "method.request.querystring.pageSize": False,
+                "method.request.querystring.lastEvaluatedKey": False,
+                "method.request.querystring.status": False,
+            }
+        )
+
         # Note: OPTIONS method is automatically added by default_cors_preflight_options in ApiGatewayConstruct
 
         # Add CloudFormation outputs for easy access
@@ -187,6 +211,13 @@ class VideoContentDeliveryStack(Stack):
             "GetUrlEndpoint",
             value=f"{apigateway_video.api.url}geturl",
             description="GetURL endpoint for video operations"
+        )
+
+        CfnOutput(
+            self,
+            "CatalogEndpoint",
+            value=f"{apigateway_video.api.url}catalog",
+            description="Catalog endpoint for video listings"
         )
         
         CfnOutput(
