@@ -14,6 +14,8 @@ from video_content_delivery.lambda_construct import LambdaConstruct
 from video_content_delivery.dynamo_table import DynamoTable
 from video_content_delivery.apigateway_construct import ApiGatewayConstruct
 
+import aws_cdk as cdk
+
 class VideoContentDeliveryStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -27,8 +29,8 @@ class VideoContentDeliveryStack(Stack):
 
         # Create S3 bucket for video storage with proper security and CORS configuration
         bucket = s3.Bucket(self, "VideoBucket",
+                           # bucket_name=f"video-content-{cdk.Aws.ACCOUNT_ID}-{cdk.Aws.REGION}",
                            versioned=True,
-                           bucket_name="video-content-delivery-bucket",
                            removal_policy=RemovalPolicy.DESTROY,
                            auto_delete_objects=True,
                            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -43,14 +45,14 @@ class VideoContentDeliveryStack(Stack):
                                exposed_headers=["ETag"]
                            )]
                            )
-        
+
         # Environment variables for all Lambda functions
         environment_l = {
             "TABLE_NAME": table_name,
             "REGION": "eu-west-1",
             "BUCKET_NAME": bucket.bucket_name,
         }
-        
+
         # Create Lambda function for generating presigned URLs
         get_presigned_url_function = LambdaConstruct(
             self,
@@ -104,10 +106,10 @@ class VideoContentDeliveryStack(Stack):
 
         # Grant S3 permissions to the video processing Lambda
         bucket.grant_read(process_video_function.lambda_function)
-        
+
         # Grant additional S3 permissions for playlist generation
         bucket.grant_read_write(process_video_function.lambda_function)
-        
+
         # Configure S3 to trigger Lambda when MP4 files are uploaded
         bucket.add_event_notification(
             s3.EventType.OBJECT_CREATED_PUT,
@@ -117,7 +119,7 @@ class VideoContentDeliveryStack(Stack):
 
         # Create API Gateway for REST endpoints
         apigateway_video = ApiGatewayConstruct(self, "MyAPIGateway")
-        
+
         # Add error responses for better error handling
         apigateway_video.add_error_responses()
 
@@ -205,7 +207,7 @@ class VideoContentDeliveryStack(Stack):
             description="API Gateway endpoint URL",
             export_name=f"{construct_id}-api-url"
         )
-        
+
         CfnOutput(
             self,
             "GetUrlEndpoint",
@@ -219,7 +221,7 @@ class VideoContentDeliveryStack(Stack):
             value=f"{apigateway_video.api.url}catalog",
             description="Catalog endpoint for video listings"
         )
-        
+
         CfnOutput(
             self,
             "BucketName",
@@ -227,7 +229,7 @@ class VideoContentDeliveryStack(Stack):
             description="S3 bucket name for video storage",
             export_name=f"{construct_id}-bucket-name"
         )
-        
+
         CfnOutput(
             self,
             "DynamoDBTableName",
@@ -235,5 +237,4 @@ class VideoContentDeliveryStack(Stack):
             description="DynamoDB table name for video metadata",
             export_name=f"{construct_id}-table-name"
         )
-
 

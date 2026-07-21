@@ -6,13 +6,12 @@ def test_s3_bucket_created():
     # ARRANGE
     app = core.App()
     stack = VideoContentDeliveryStack(app, "video-content-delivery")
-    
+
     # ACT
     template = assertions.Template.from_stack(stack)
 
     # ASSERT
     template.has_resource_properties("AWS::S3::Bucket", {
-        "BucketName": "video-content-delivery-bucket",
         "VersioningConfiguration": {
             "Status": "Enabled"
         },
@@ -30,7 +29,7 @@ def test_dynamodb_table_created():
     # ARRANGE
     app = core.App()
     stack = VideoContentDeliveryStack(app, "video-content-delivery")
-    
+
     # ACT
     template = assertions.Template.from_stack(stack)
 
@@ -62,14 +61,14 @@ def test_lambda_functions_created():
     # ARRANGE
     app = core.App()
     stack = VideoContentDeliveryStack(app, "video-content-delivery")
-    
+
     # ACT
     template = assertions.Template.from_stack(stack)
 
     # ASSERT
     # Verificar que se crean las funciones Lambda (includes CloudWatch log group functions)
     template.resource_count_is("AWS::Lambda::Function", 6)  # 4 app lambdas + 2 auto-delete helper lambdas
-    
+
     # Verificar la función GetPresignedUrl
     template.has_resource_properties("AWS::Lambda::Function", {
         "Handler": "index.handler",
@@ -99,7 +98,7 @@ def test_api_gateway_created():
     # ARRANGE
     app = core.App()
     stack = VideoContentDeliveryStack(app, "video-content-delivery")
-    
+
     # ACT
     template = assertions.Template.from_stack(stack)
 
@@ -111,7 +110,7 @@ def test_api_gateway_created():
             "Types": ["REGIONAL"]
         }
     })
-    
+
     # Verificar método GET
     template.has_resource_properties("AWS::ApiGateway::Method", {
         "HttpMethod": "GET",
@@ -126,7 +125,7 @@ def test_authorizer_created():
     # ARRANGE
     app = core.App()
     stack = VideoContentDeliveryStack(app, "video-content-delivery")
-    
+
     # ACT
     template = assertions.Template.from_stack(stack)
 
