@@ -61,6 +61,7 @@ class VideoContentDeliveryStack(Stack):
             path_l="video_content_delivery/src/lambda/generate_url_pre",
             function_name="GetPresignedUrlFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
+            memory_size=256,
             table=video_table,
             environment=environment_l
         )

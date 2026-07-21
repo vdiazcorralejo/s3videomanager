@@ -217,10 +217,10 @@ Notas operativas:
 
 Tareas:
 
-- [ ] Crear `action=get_playback_url`
-- [ ] Diferenciar descarga de playback si se mantienen ambas acciones
-- [ ] Mapear content type por extension
-- [ ] Configurar expiracion de playback mas larga que la de descarga puntual
+- [x] Crear `action=get_playback_url`
+- [x] Diferenciar descarga de playback si se mantienen ambas acciones
+- [x] Mapear content type por extension
+- [x] Configurar expiracion de playback mas larga que la de descarga puntual
 - [ ] Validar reproduccion real en la app MFC
 
 ---
