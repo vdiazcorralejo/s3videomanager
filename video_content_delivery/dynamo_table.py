@@ -3,7 +3,7 @@ from aws_cdk import aws_dynamodb as dynamodb
 from constructs import Construct
 
 class DynamoTable:
-    def __init__(self, scope: Construct, id: str) -> None:
+    def __init__(self, scope: Construct, id: str, environment_name: str = "dev", is_production: bool = False) -> None:
         # Create DynamoDB table
         self.table = dynamodb.Table(
             scope,
@@ -18,7 +18,9 @@ class DynamoTable:
                 type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=RemovalPolicy.RETAIN,
+            point_in_time_recovery=is_production,
+            deletion_protection=is_production,
+            removal_policy=RemovalPolicy.RETAIN if is_production else RemovalPolicy.DESTROY,
         )
 
         # Catalog query index by status (ready/failed/processing).

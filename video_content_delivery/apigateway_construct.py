@@ -14,15 +14,21 @@ from typing import Optional
 class ApiGatewayConstruct(Construct):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        environment_name = str(kwargs.pop("environment_name", "dev")).strip().lower()
+        is_production = environment_name == "prod"
         super().__init__(scope, construct_id, **kwargs)
+        log_retention = logs.RetentionDays.ONE_MONTH if is_production else logs.RetentionDays.ONE_WEEK
+        log_removal_policy = RemovalPolicy.RETAIN if is_production else RemovalPolicy.DESTROY
+        throttling_rate_limit = 100 if is_production else 20
+        throttling_burst_limit = 200 if is_production else 50
 
         #Creamos el loggroup
         log_group = logs.LogGroup(
             self,
             "ApiGatewayLogGroup",
             log_group_name="MyVideoFilesAPILogGroup",
-            retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.RETAIN
+            retention=log_retention,
+            removal_policy=log_removal_policy
         )
 
         # Crear el API Gateway REST API
@@ -46,12 +52,12 @@ class ApiGatewayConstruct(Construct):
                         user=True,
                 ),
                 logging_level=apigateway.MethodLoggingLevel.INFO,
-                data_trace_enabled=True,
+                data_trace_enabled=is_production,
                 # Add throttling to prevent abuse
-                throttling_rate_limit=100,  # Requests per second
-                throttling_burst_limit=200,  # Burst capacity
+                throttling_rate_limit=throttling_rate_limit,  # Requests per second
+                throttling_burst_limit=throttling_burst_limit,  # Burst capacity
                 # Add metrics to monitor API usage
-                metrics_enabled=True
+                metrics_enabled=is_production
             ),
             description='API Gateway to manage video content',
             # Add default CORS configuration
