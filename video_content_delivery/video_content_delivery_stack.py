@@ -1,11 +1,16 @@
 import json
+import os
 from aws_cdk import (
     Stack,
     Duration,
     aws_s3 as s3,
     aws_lambda as _lambda,
     aws_apigateway as apigateway,
-    aws_s3_notifications as s3n,  # Add this import
+    aws_s3_notifications as s3n,
+    aws_secretsmanager as secretsmanager,
+    aws_wafv2 as wafv2,
+    aws_iam as iam,
+    aws_logs as logs,
     RemovalPolicy,
     CfnOutput,
 )
@@ -19,22 +24,49 @@ import aws_cdk as cdk
 
 class VideoContentDeliveryStack(Stack):
 
+    def _resolve_environment_name(self) -> str:
+        raw_value = (
+            self.node.try_get_context("environment")
+            or self.node.try_get_context("env")
+            or os.getenv("CDK_ENVIRONMENT")
+            or os.getenv("ENVIRONMENT")
+            or "dev"
+        )
+        env_name = str(raw_value).strip().lower()
+        if env_name in {"prod", "production", "prd"}:
+            return "prod"
+        if env_name in {"staging", "stage", "stg", "preprod", "pre-production"}:
+            return "staging"
+        return "dev"
+
+    def _get_removal_policy(self) -> RemovalPolicy:
+        return RemovalPolicy.RETAIN if self.environment_name == "prod" else RemovalPolicy.DESTROY
+
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        self.environment_name = self._resolve_environment_name()
+        self.is_production = self.environment_name == "prod"
+        self.is_non_production = not self.is_production
+
+        lambda_memory_size = 512 if self.is_production else 128
+        lambda_timeout = Duration.seconds(30 if self.is_production else 15)
+        log_retention = logs.RetentionDays.ONE_MONTH if self.is_production else logs.RetentionDays.ONE_WEEK
+        log_removal_policy = RemovalPolicy.RETAIN if self.is_production else RemovalPolicy.DESTROY
+
         # Create the DynamoDB table for storing video metadata
         table_name = "listOfVideoFiles"
-        video_table = DynamoTable(self, table_name)
+        video_table = DynamoTable(self, table_name, environment_name=self.environment_name, is_production=self.is_production)
         print(f"Table ARN: {video_table.table.table_arn}")
         print(f"Table NAME: {video_table.table.table_name}")
 
         # Create S3 bucket for video storage with proper security and CORS configuration
         bucket = s3.Bucket(self, "VideoBucket",
-                           # bucket_name=f"video-content-{cdk.Aws.ACCOUNT_ID}-{cdk.Aws.REGION}",
-                           versioned=True,
-                           removal_policy=RemovalPolicy.DESTROY,
-                           auto_delete_objects=True,
+                           versioned=self.is_production,
+                           removal_policy=self._get_removal_policy(),
                            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+                           encryption=s3.BucketEncryption.S3_MANAGED,
+                           enforce_ssl=True,
                            cors=[s3.CorsRule(
                                allowed_headers=["*"],
                                allowed_methods=[
@@ -47,32 +79,59 @@ class VideoContentDeliveryStack(Stack):
                            )]
                            )
 
-        # Lifecycle rules for cost optimisation (Fase 0.6)
-        bucket.add_lifecycle_rule(
-            id='IntelligentTiering',
-            transitions=[
-                s3.Transition(
-                    storage_class=s3.StorageClass.INTELLIGENT_TIERING,
-                    transition_after=Duration.days(0)
-                )
-            ]
-        )
-        bucket.add_lifecycle_rule(
-            id='ArchiveOldVideos',
-            transitions=[
-                s3.Transition(
-                    storage_class=s3.StorageClass.GLACIER_INSTANT_RETRIEVAL,
-                    transition_after=Duration.days(90)
-                )
-            ],
-            prefix='videos/'
-        )
+        # Lifecycle rules for cost optimisation and production safety
+        if self.is_production:
+            bucket.add_lifecycle_rule(
+                id='IntelligentTiering',
+                transitions=[
+                    s3.Transition(
+                        storage_class=s3.StorageClass.INTELLIGENT_TIERING,
+                        transition_after=Duration.days(0)
+                    )
+                ]
+            )
+            bucket.add_lifecycle_rule(
+                id='ArchiveOldVideos',
+                transitions=[
+                    s3.Transition(
+                        storage_class=s3.StorageClass.GLACIER_INSTANT_RETRIEVAL,
+                        transition_after=Duration.days(90)
+                    )
+                ],
+                prefix='videos/'
+            )
+        else:
+            bucket.add_lifecycle_rule(
+                id='ArchiveOldVideos',
+                transitions=[
+                    s3.Transition(
+                        storage_class=s3.StorageClass.GLACIER_INSTANT_RETRIEVAL,
+                        transition_after=Duration.days(30)
+                    )
+                ],
+                prefix='videos/'
+            )
+            bucket.add_lifecycle_rule(
+                id='DeleteIncompleteUploads',
+                expiration=Duration.days(1)
+            )
 
         # Environment variables for all Lambda functions
         environment_l = {
             "TABLE_NAME": table_name,
-            "REGION": "eu-west-1",
+            "REGION": self.region or "eu-west-1",
             "BUCKET_NAME": bucket.bucket_name,
+        }
+
+        jwt_secret = secretsmanager.Secret(
+            self,
+            "JwtSecret",
+            secret_name=f"video-content-delivery-jwt-secret-{self.environment_name}",
+            removal_policy=self._get_removal_policy(),
+        )
+        jwt_environment = {
+            **environment_l,
+            "JWT_SECRET_NAME": jwt_secret.secret_name,
         }
 
         # Create Lambda function for generating presigned URLs
@@ -83,7 +142,10 @@ class VideoContentDeliveryStack(Stack):
             path_l="video_content_delivery/src/lambda/generate_url_pre",
             function_name="GetPresignedUrlFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            memory_size=256,
+            memory_size=lambda_memory_size,
+            timeout=lambda_timeout,
+            log_retention=log_retention,
+            log_removal_policy=log_removal_policy,
             table=video_table,
             environment=environment_l
         )
@@ -99,9 +161,15 @@ class VideoContentDeliveryStack(Stack):
             handler_file="index.handler",
             path_l="video_content_delivery/src/lambda/auth",
             function_name="apigatewayAuthorizer",
-            runtime=_lambda.Runtime.PYTHON_3_12
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            memory_size=lambda_memory_size,
+            timeout=lambda_timeout,
+            log_retention=log_retention,
+            log_removal_policy=log_removal_policy,
+            environment=jwt_environment,
         )
         print(f"Lambda ARN: {lambda_authorizer.lambda_function.function_arn}")
+        jwt_secret.grant_read(lambda_authorizer.lambda_function)
 
         # Create Lambda function for processing uploaded videos
         process_video_function = LambdaConstruct(
@@ -111,9 +179,29 @@ class VideoContentDeliveryStack(Stack):
             path_l="video_content_delivery/src/lambda/process_video",
             function_name="ProcessVideoFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
+            memory_size=lambda_memory_size,
+            timeout=lambda_timeout,
+            log_retention=log_retention,
+            log_removal_policy=log_removal_policy,
             table=video_table,
             environment=environment_l
         )
+
+        # Create Lambda function for token generation
+        token_generator_function = LambdaConstruct(
+            self,
+            "TokenGeneratorFunction",
+            handler_file="index.handler",
+            path_l="video_content_delivery/src/lambda/token_generator",
+            function_name="TokenGeneratorFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            memory_size=lambda_memory_size,
+            timeout=lambda_timeout,
+            log_retention=log_retention,
+            log_removal_policy=log_removal_policy,
+            environment=jwt_environment,
+        )
+        jwt_secret.grant_read(token_generator_function.lambda_function)
 
         # Create Lambda function for catalog retrieval
         catalog_function = LambdaConstruct(
@@ -124,6 +212,10 @@ class VideoContentDeliveryStack(Stack):
             function_name="CatalogFunction",
             runtime=_lambda.Runtime.PYTHON_3_12,
             table=video_table,
+            memory_size=lambda_memory_size,
+            timeout=lambda_timeout,
+            log_retention=log_retention,
+            log_removal_policy=log_removal_policy,
             environment=environment_l
         )
 
@@ -141,7 +233,51 @@ class VideoContentDeliveryStack(Stack):
         )
 
         # Create API Gateway for REST endpoints
-        apigateway_video = ApiGatewayConstruct(self, "MyAPIGateway")
+        apigateway_video = ApiGatewayConstruct(
+            self,
+            "MyAPIGateway",
+            environment_name=self.environment_name,
+        )
+
+        # Add a regional WAF WebACL with basic managed protections in production only
+        if self.is_production:
+            waf_web_acl = wafv2.CfnWebACL(
+                self,
+                "VideoApiWafWebAcl",
+                scope="REGIONAL",
+                default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+                visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                    cloud_watch_metrics_enabled=True,
+                    metric_name="VideoApiWaf",
+                    sampled_requests_enabled=True,
+                ),
+                rules=[
+                    wafv2.CfnWebACL.RuleProperty(
+                        name="AWSManagedRulesCommonRuleSet",
+                        priority=1,
+                        statement=wafv2.CfnWebACL.StatementProperty(
+                            managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                                name="AWSManagedRulesCommonRuleSet",
+                                vendor_name="AWS",
+                            )
+                        ),
+                        override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+                        visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                            cloud_watch_metrics_enabled=True,
+                            metric_name="CommonRuleSet",
+                            sampled_requests_enabled=True,
+                        ),
+                    )
+                ],
+            )
+
+            # Attach the WAF ACL to API Gateway stage via association resource
+            wafv2.CfnWebACLAssociation(
+                self,
+                "VideoApiWafAssociation",
+                resource_arn=f"arn:aws:apigateway:{cdk.Aws.REGION}::/restapis/{apigateway_video.api.rest_api_id}/stages/prod",
+                web_acl_arn=waf_web_acl.attr_arn,
+            )
 
         # Add error responses for better error handling
         apigateway_video.add_error_responses()

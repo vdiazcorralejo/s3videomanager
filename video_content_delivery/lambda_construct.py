@@ -11,11 +11,12 @@ from video_content_delivery.dynamo_table import DynamoTable
 from typing import Optional, Dict, Any
 
 class LambdaConstruct(Construct):
-    def __init__(self, scope: Construct, id: str, handler_file: str, path_l: str, 
-                 function_name: str, runtime: lambda_.Runtime, table: Optional[DynamoTable] = None, 
-                 environment: Optional[Dict[str, str]] = None, **kwargs: Any) -> None:
+    def __init__(self, scope: Construct, id: str, handler_file: str, path_l: str,
+                 function_name: str, runtime: lambda_.Runtime, table: Optional[DynamoTable] = None,
+                 environment: Optional[Dict[str, str]] = None, log_retention: Optional[logs.RetentionDays] = None,
+                 log_removal_policy: Optional[RemovalPolicy] = None, **kwargs: Any) -> None:
         super().__init__(scope, id)
-    
+
         # Create the Lambda function
         self.lambda_function: lambda_.IFunction = lambda_.Function(
             self,
@@ -29,12 +30,14 @@ class LambdaConstruct(Construct):
         )
 
         # Create CloudWatch Log Group
+        effective_log_retention = log_retention or logs.RetentionDays.ONE_WEEK
+        effective_log_removal_policy = log_removal_policy or RemovalPolicy.DESTROY
         log_group = logs.LogGroup(
             self,
             f"{function_name}LogGroup",
             log_group_name=f"/aws/lambda/{function_name}",
-            retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.DESTROY
+            retention=effective_log_retention,
+            removal_policy=effective_log_removal_policy
         )
 
         # Grant permissions to Lambda to write logs
@@ -42,5 +45,5 @@ class LambdaConstruct(Construct):
 
         # Add DynamoDB permissions if table is provided
         if table:
-            table.table.grant_full_access(self.lambda_function)
-            print(f"LambdaConstruct(): Granted full access to DynamoDB table: {table.table.table_name}")
+            table.table.grant_read_write_data(self.lambda_function)
+            print(f"LambdaConstruct(): Granted read/write access to DynamoDB table: {table.table.table_name}")

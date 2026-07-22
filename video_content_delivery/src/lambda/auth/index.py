@@ -1,22 +1,55 @@
 import json
 import os
+from functools import lru_cache
+
+import boto3
+import jwt
+
+ALGORITHM = 'HS256'
+
+
+@lru_cache(maxsize=1)
+def get_secret():
+    secret_name = os.environ.get('JWT_SECRET_NAME')
+    if not secret_name:
+        raise RuntimeError('JWT_SECRET_NAME environment variable is not set')
+
+    client = boto3.client('secretsmanager')
+    response = client.get_secret_value(SecretId=secret_name)
+    secret_payload = json.loads(response['SecretString'])
+    return secret_payload['JWT_SECRET_KEY']
+
+
+def _extract_token(token):
+    if not token:
+        return None
+    if token.lower().startswith('bearer '):
+        return token.split(' ', 1)[1]
+    return token
+
 
 def handler(event, context):
     token = event.get('authorizationToken')
+    method_arn = event.get('methodArn')
     print('token received:', token)
-    print('Method ARN:', event.get('methodArn'))
+    print('Method ARN:', method_arn)
 
     if not token:
         print('ERROR: no token received!!')
-        return generate_policy('user', 'Deny', event.get('methodArn'))
-    
-    # Use environment variable for expected token, fallback to default for backwards compatibility
-    expected_token = os.environ.get('EXPECTED_TOKEN', 'valid-token')
+        return generate_policy('user', 'Deny', method_arn)
 
-    if token == expected_token:
-        return generate_policy('user', 'Allow', event.get('methodArn'))
-    else:
-        return generate_policy('user', 'Deny', event.get('methodArn'))
+    try:
+        secret = get_secret()
+        raw_token = _extract_token(token)
+        if not raw_token:
+            raise ValueError('Token is empty')
+
+        jwt.decode(raw_token, secret, algorithms=[ALGORITHM], options={'require': ['sub', 'exp']})
+        return generate_policy('user', 'Allow', method_arn)
+    except Exception as exc:
+        print('JWT validation failed:', exc)
+        return generate_policy('user', 'Deny', method_arn)
+
 
 def generate_policy(principal_id, effect, resource):
     auth_response = {
