@@ -134,3 +134,25 @@ def test_authorizer_created():
         "Type": "TOKEN",
         "IdentitySource": "method.request.header.Authorization"
     })
+
+
+def test_security_hardening_is_enabled():
+    app = core.App()
+    stack = VideoContentDeliveryStack(app, "video-content-delivery")
+
+    template = assertions.Template.from_stack(stack)
+
+    template.has_resource_properties("AWS::S3::Bucket", {
+        "BucketEncryption": {
+            "ServerSideEncryptionConfiguration": [{
+                "ServerSideEncryptionByDefault": {
+                    "SSEAlgorithm": "AES256"
+                }
+            }]
+        }
+    })
+
+    template.resource_count_is("AWS::S3::BucketPolicy", 1)
+    template.has_resource_properties("AWS::WAFv2::WebACL", {
+        "Scope": "REGIONAL"
+    })

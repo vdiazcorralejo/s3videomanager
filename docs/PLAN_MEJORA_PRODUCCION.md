@@ -359,9 +359,9 @@ Estado de avance al 2026-07-22:
 
 - [x] Bloque de secretos JWT externalizados a AWS Secrets Manager.
 - [x] IAM reducido a permisos de lectura/escritura para los recursos requeridos.
-- [ ] Cambio de RemovalPolicy a RETAIN y eliminación de políticas destructivas.
-- [ ] Endurecimiento de S3 con SSL, cifrado y logs.
-- [ ] WAF y controles de capa 7.
+- [x] Cambio de RemovalPolicy a RETAIN para S3, DynamoDB y log groups.
+- [x] Endurecimiento de S3 con SSL, cifrado gestionado y bucket privado.
+- [x] WAF regional con reglas gestionadas básicas para API Gateway.
 
 ### 1.1 Externalizar `SECRET_KEY` a AWS Secrets Manager
 
@@ -398,9 +398,9 @@ Problema: un `cdk destroy` destruiria contenido y metadatos.
 
 Tareas:
 
-- [ ] Cambiar `RemovalPolicy` a `RETAIN` en S3, DynamoDB y log groups de produccion
-- [ ] Eliminar `auto_delete_objects=True`
-- [ ] Definir procedimiento seguro de limpieza manual
+- [x] Cambiar `RemovalPolicy` a `RETAIN` en S3, DynamoDB y log groups de produccion
+- [x] Eliminar `auto_delete_objects=True`
+- [x] Definir procedimiento seguro de limpieza manual
 
 ---
 
@@ -422,8 +422,8 @@ Problema: API expuesta sin protecciones basicas de capa 7.
 
 Tareas:
 
-- [ ] Crear `WafConstruct`
-- [ ] Activar `AWSManagedRulesCommonRuleSet`
+- [x] Crear `WafConstruct` (implementado como recurso `CfnWebACL` en el stack)
+- [x] Activar `AWSManagedRulesCommonRuleSet`
 - [ ] Activar `AWSManagedRulesSQLiRuleSet`
 - [ ] Configurar rate limit
 
@@ -435,10 +435,10 @@ Nota: si el sistema va a operar solo en red controlada o VPN privada, puede estu
 
 Tareas:
 
-- [ ] Activar `enforce_ssl=True`
-- [ ] Activar cifrado gestionado
+- [x] Activar `enforce_ssl=True`
+- [x] Activar cifrado gestionado
 - [ ] Configurar access logs o CloudTrail data events segun coste y necesidad de auditoria
-- [ ] Mantener bucket privado y sin acceso publico
+- [x] Mantener bucket privado y sin acceso publico
 
 ---
 

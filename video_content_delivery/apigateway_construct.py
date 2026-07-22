@@ -22,8 +22,8 @@ class ApiGatewayConstruct(Construct):
             "ApiGatewayLogGroup",
             log_group_name="MyVideoFilesAPILogGroup",
             retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.DESTROY
-        ) 
+            removal_policy=RemovalPolicy.RETAIN
+        )
 
         # Crear el API Gateway REST API
         self.api = apigateway.RestApi(
@@ -45,7 +45,7 @@ class ApiGatewayConstruct(Construct):
                         status=True,
                         user=True,
                 ),
-                logging_level=apigateway.MethodLoggingLevel.INFO, 
+                logging_level=apigateway.MethodLoggingLevel.INFO,
                 data_trace_enabled=True,
                 # Add throttling to prevent abuse
                 throttling_rate_limit=100,  # Requests per second
@@ -89,7 +89,7 @@ class ApiGatewayConstruct(Construct):
         logging.info(f"Authorizer created with ID: {authorizer.ref}")
         print(f"Authorizer created with ID: {authorizer.ref}")
         return authorizer
-    
+
     def add_authorizer_v2(self, authorizer_name: str, authorizer_function: _lambda.IFunction) -> apigateway.IAuthorizer:
         """Método para añadir un authorizer a alto nivel"""
         # Create Lambda Authorizer Token Type
@@ -111,12 +111,12 @@ class ApiGatewayConstruct(Construct):
             authorizer=authorizer
         )
         return new_resource
-    
+
     def add_cors_options(self, resource: apigateway.Resource, allowed_methods: Optional[list[str]] = None) -> None:
         """Add CORS OPTIONS method to a resource"""
         if allowed_methods is None:
             allowed_methods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-        
+
         resource.add_method(
             "OPTIONS",
             apigateway.MockIntegration(
@@ -146,7 +146,7 @@ class ApiGatewayConstruct(Construct):
                 )
             ]
         )
-    
+
     def add_error_responses(self) -> None:
         """Add standard error response models to API Gateway"""
         # Add Gateway Response for unauthorized access
@@ -162,7 +162,7 @@ class ApiGatewayConstruct(Construct):
                 "application/json": '{"message": "Unauthorized", "error": "$context.error.messageString"}'
             }
         )
-        
+
         # Add Gateway Response for access denied
         self.api.add_gateway_response(
             "AccessDeniedResponse",
@@ -176,7 +176,7 @@ class ApiGatewayConstruct(Construct):
                 "application/json": '{"message": "Access Denied", "error": "$context.error.messageString"}'
             }
         )
-        
+
         # Add Gateway Response for invalid API key
         self.api.add_gateway_response(
             "InvalidApiKeyResponse",
@@ -190,7 +190,7 @@ class ApiGatewayConstruct(Construct):
                 "application/json": '{"message": "Invalid API Key", "error": "$context.error.messageString"}'
             }
         )
-        
+
         # Add Gateway Response for throttled requests
         self.api.add_gateway_response(
             "ThrottledResponse",
@@ -204,7 +204,7 @@ class ApiGatewayConstruct(Construct):
                 "application/json": '{"message": "Too Many Requests", "error": "Rate limit exceeded"}'
             }
         )
-        
+
         # Add Gateway Response for default 4xx errors
         self.api.add_gateway_response(
             "Default4xxResponse",
@@ -214,7 +214,7 @@ class ApiGatewayConstruct(Construct):
                 "Access-Control-Allow-Credentials": "'true'"
             }
         )
-        
+
         # Add Gateway Response for default 5xx errors
         self.api.add_gateway_response(
             "Default5xxResponse",
@@ -223,4 +223,4 @@ class ApiGatewayConstruct(Construct):
                 "Access-Control-Allow-Origin": "'http://localhost:3000'",
                 "Access-Control-Allow-Credentials": "'true'"
             }
-        )       
+        )

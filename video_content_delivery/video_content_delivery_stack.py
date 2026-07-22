@@ -5,8 +5,10 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_lambda as _lambda,
     aws_apigateway as apigateway,
-    aws_s3_notifications as s3n,  # Add this import
+    aws_s3_notifications as s3n,
     aws_secretsmanager as secretsmanager,
+    aws_wafv2 as wafv2,
+    aws_iam as iam,
     RemovalPolicy,
     CfnOutput,
 )
@@ -31,11 +33,11 @@ class VideoContentDeliveryStack(Stack):
 
         # Create S3 bucket for video storage with proper security and CORS configuration
         bucket = s3.Bucket(self, "VideoBucket",
-                           # bucket_name=f"video-content-{cdk.Aws.ACCOUNT_ID}-{cdk.Aws.REGION}",
                            versioned=True,
-                           removal_policy=RemovalPolicy.DESTROY,
-                           auto_delete_objects=True,
+                           removal_policy=RemovalPolicy.RETAIN,
                            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+                           encryption=s3.BucketEncryption.S3_MANAGED,
+                           enforce_ssl=True,
                            cors=[s3.CorsRule(
                                allowed_headers=["*"],
                                allowed_methods=[
@@ -168,6 +170,45 @@ class VideoContentDeliveryStack(Stack):
 
         # Create API Gateway for REST endpoints
         apigateway_video = ApiGatewayConstruct(self, "MyAPIGateway")
+
+        # Add a regional WAF WebACL with basic managed protections
+        waf_web_acl = wafv2.CfnWebACL(
+            self,
+            "VideoApiWafWebAcl",
+            scope="REGIONAL",
+            default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled=True,
+                metric_name="VideoApiWaf",
+                sampled_requests_enabled=True,
+            ),
+            rules=[
+                wafv2.CfnWebACL.RuleProperty(
+                    name="AWSManagedRulesCommonRuleSet",
+                    priority=1,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                            name="AWSManagedRulesCommonRuleSet",
+                            vendor_name="AWS",
+                        )
+                    ),
+                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        cloud_watch_metrics_enabled=True,
+                        metric_name="CommonRuleSet",
+                        sampled_requests_enabled=True,
+                    ),
+                )
+            ],
+        )
+
+        # Attach the WAF ACL to API Gateway stage via association resource
+        wafv2.CfnWebACLAssociation(
+            self,
+            "VideoApiWafAssociation",
+            resource_arn=f"arn:aws:apigateway:{cdk.Aws.REGION}::/restapis/{apigateway_video.api.rest_api_id}/stages/prod",
+            web_acl_arn=waf_web_acl.attr_arn,
+        )
 
         # Add error responses for better error handling
         apigateway_video.add_error_responses()
