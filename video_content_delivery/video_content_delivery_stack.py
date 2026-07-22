@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_lambda as _lambda,
     aws_apigateway as apigateway,
     aws_s3_notifications as s3n,  # Add this import
+    aws_secretsmanager as secretsmanager,
     RemovalPolicy,
     CfnOutput,
 )
@@ -75,6 +76,17 @@ class VideoContentDeliveryStack(Stack):
             "BUCKET_NAME": bucket.bucket_name,
         }
 
+        jwt_secret = secretsmanager.Secret(
+            self,
+            "JwtSecret",
+            secret_name="video-content-delivery-jwt-secret",
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+        jwt_environment = {
+            **environment_l,
+            "JWT_SECRET_NAME": jwt_secret.secret_name,
+        }
+
         # Create Lambda function for generating presigned URLs
         get_presigned_url_function = LambdaConstruct(
             self,
@@ -99,9 +111,11 @@ class VideoContentDeliveryStack(Stack):
             handler_file="index.handler",
             path_l="video_content_delivery/src/lambda/auth",
             function_name="apigatewayAuthorizer",
-            runtime=_lambda.Runtime.PYTHON_3_12
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            environment=jwt_environment,
         )
         print(f"Lambda ARN: {lambda_authorizer.lambda_function.function_arn}")
+        jwt_secret.grant_read(lambda_authorizer.lambda_function)
 
         # Create Lambda function for processing uploaded videos
         process_video_function = LambdaConstruct(
@@ -114,6 +128,18 @@ class VideoContentDeliveryStack(Stack):
             table=video_table,
             environment=environment_l
         )
+
+        # Create Lambda function for token generation
+        token_generator_function = LambdaConstruct(
+            self,
+            "TokenGeneratorFunction",
+            handler_file="index.handler",
+            path_l="video_content_delivery/src/lambda/token_generator",
+            function_name="TokenGeneratorFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            environment=jwt_environment,
+        )
+        jwt_secret.grant_read(token_generator_function.lambda_function)
 
         # Create Lambda function for catalog retrieval
         catalog_function = LambdaConstruct(

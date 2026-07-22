@@ -42,5 +42,5 @@ class LambdaConstruct(Construct):
 
         # Add DynamoDB permissions if table is provided
         if table:
-            table.table.grant_full_access(self.lambda_function)
-            print(f"LambdaConstruct(): Granted full access to DynamoDB table: {table.table.table_name}")
+            table.table.grant_read_write_data(self.lambda_function)
+            print(f"LambdaConstruct(): Granted read/write access to DynamoDB table: {table.table.table_name}")
