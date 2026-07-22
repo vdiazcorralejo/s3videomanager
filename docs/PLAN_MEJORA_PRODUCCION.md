@@ -355,6 +355,14 @@ Tareas:
 > Prioridad: inmediata - bloqueante para produccion
 > Esfuerzo estimado: 1 sprint (2 semanas)
 
+Estado de avance al 2026-07-22:
+
+- [x] Bloque de secretos JWT externalizados a AWS Secrets Manager.
+- [x] IAM reducido a permisos de lectura/escritura para los recursos requeridos.
+- [ ] Cambio de RemovalPolicy a RETAIN y eliminación de políticas destructivas.
+- [ ] Endurecimiento de S3 con SSL, cifrado y logs.
+- [ ] WAF y controles de capa 7.
+
 ### 1.1 Externalizar `SECRET_KEY` a AWS Secrets Manager
 
 Problema: la clave JWT esta hardcodeada en codigo.
@@ -377,10 +385,10 @@ def get_secret():
 
 Tareas:
 
-- [ ] Crear recurso `Secret` en CDK
-- [ ] Otorgar `secretsmanager:GetSecretValue` solo a `auth` y `token_generator`
-- [ ] Pasar `JWT_SECRET_NAME` por variables de entorno
-- [ ] Cachear el secreto en memoria
+- [x] Crear recurso `Secret` en CDK
+- [x] Otorgar `secretsmanager:GetSecretValue` solo a `auth` y `token_generator`
+- [x] Pasar `JWT_SECRET_NAME` por variables de entorno
+- [x] Cachear el secreto en memoria
 
 ---
 
@@ -402,9 +410,9 @@ Problema: `grant_full_access()` es excesivo.
 
 Tareas:
 
-- [ ] Cambiar `grant_full_access` por `grant_read_write_data`
-- [ ] Revisar permisos S3 por Lambda
-- [ ] Quitar permisos innecesarios al authorizer
+- [x] Cambiar `grant_full_access` por `grant_read_write_data`
+- [x] Revisar permisos S3 por Lambda
+- [x] Quitar permisos innecesarios al authorizer
 
 ---
 
@@ -438,6 +446,8 @@ Tareas:
 
 > Prioridad: alta
 > Esfuerzo estimado: 1 sprint (2 semanas)
+
+Avance inicial del paso 2 (2026-07-22): se inicia la transición desde procesamiento directo hacia un patrón más resiliente con SQS, DLQ y alarmas base para mejorar reintentos, trazabilidad y observabilidad operativa.
 
 ### 2.1 Pasar de S3 -> Lambda directa a S3 -> SQS -> Lambda
 
