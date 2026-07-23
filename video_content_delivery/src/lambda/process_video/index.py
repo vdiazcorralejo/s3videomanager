@@ -6,7 +6,17 @@ from urllib.parse import unquote_plus
 
 import boto3
 
-dynamodb = boto3.client('dynamodb')
+dynamodb = None
+
+
+def get_dynamodb_client():
+    global dynamodb
+    if dynamodb is None:
+        dynamodb = boto3.client(
+            'dynamodb',
+            region_name=os.environ.get('REGION', 'eu-west-1')
+        )
+    return dynamodb
 
 HEADERS = {
     'Content-Type': 'application/json',
@@ -44,6 +54,32 @@ def _build_catalog_item(bucket_name, key, size_bytes):
         'sourceKey': {'S': key},
     }
 
+def _extract_s3_records(event):
+    records = event.get('Records', [])
+    if not records:
+        return []
+
+    first_record = records[0]
+    if 's3' in first_record:
+        return records
+
+    extracted_records = []
+    for record in records:
+        try:
+            body = record.get('body', '{}')
+            if isinstance(body, str):
+                payload = json.loads(body)
+            else:
+                payload = body
+        except (TypeError, json.JSONDecodeError):
+            continue
+
+        if isinstance(payload, dict):
+            extracted_records.extend(payload.get('Records', []))
+
+    return extracted_records
+
+
 def handler(event, context):
     print("=== Lambda Execution Started ===")
     print(f"Event received: {json.dumps(event, indent=2)}")
@@ -51,50 +87,65 @@ def handler(event, context):
     print(f"Memory limit: {context.memory_limit_in_mb}MB")
 
     try:
-        record = event['Records'][0]
-        bucket = record['s3']['bucket']['name']
-        raw_key = record['s3']['object']['key']
-        key = unquote_plus(raw_key)
-        size_bytes = int(record['s3']['object'].get('size', 0))
-
-        print(f"\n=== Processing Upload ===")
-        print(f"Bucket: {bucket}")
-        print(f"File: {key}")
-
-        if not key.lower().endswith('.mp4'):
-            print("Skipping non-MP4 object")
+        s3_records = _extract_s3_records(event)
+        if not s3_records:
             return _response(200, {
-                'message': 'Skipped non-MP4 object',
-                'fileName': key
+                'message': 'No S3 records to process',
             })
 
-        table_name = os.environ.get('TABLE_NAME')
-        if not table_name:
-            print('Error: TABLE_NAME environment variable not set')
-            return _response(500, {
-                'error': 'Server configuration error'
+        processed_items = []
+        for record in s3_records:
+            bucket = record['s3']['bucket']['name']
+            raw_key = record['s3']['object']['key']
+            key = unquote_plus(raw_key)
+            size_bytes = int(record['s3']['object'].get('size', 0))
+
+            print(f"\n=== Processing Upload ===")
+            print(f"Bucket: {bucket}")
+            print(f"File: {key}")
+
+            if not key.lower().endswith('.mp4'):
+                print("Skipping non-MP4 object")
+                processed_items.append({
+                    'message': 'Skipped non-MP4 object',
+                    'fileName': key,
+                })
+                continue
+
+            table_name = os.environ.get('TABLE_NAME')
+            if not table_name:
+                print('Error: TABLE_NAME environment variable not set')
+                return _response(500, {
+                    'error': 'Server configuration error'
+                })
+
+            item = _build_catalog_item(bucket, key, size_bytes)
+
+            print('\n=== Updating DynamoDB ===')
+            print(f"Table: {table_name}")
+            print(f"Catalog item id: {item['videoId']['S']}")
+
+            response = get_dynamodb_client().put_item(
+                TableName=table_name,
+                Item=item
+            )
+
+            print(f"\n=== DynamoDB Update Complete ===")
+            print(f"Response: {json.dumps(response, default=str, indent=2)}")
+
+            processed_items.append({
+                'message': 'Catalog item stored successfully',
+                'videoId': item['videoId']['S'],
+                'fileName': item['fileName']['S'],
+                'status': item['status']['S'],
+                'uploadDate': item['uploadDate']['S'],
             })
 
-        item = _build_catalog_item(bucket, key, size_bytes)
-
-        print('\n=== Updating DynamoDB ===')
-        print(f"Table: {table_name}")
-        print(f"Catalog item id: {item['videoId']['S']}")
-
-        response = dynamodb.put_item(
-            TableName=table_name,
-            Item=item
-        )
-
-        print(f"\n=== DynamoDB Update Complete ===")
-        print(f"Response: {json.dumps(response, default=str, indent=2)}")
+        if len(processed_items) == 1:
+            return _response(200, processed_items[0])
 
         return _response(200, {
-            'message': 'Catalog item stored successfully',
-            'videoId': item['videoId']['S'],
-            'fileName': item['fileName']['S'],
-            'status': item['status']['S'],
-            'uploadDate': item['uploadDate']['S']
+            'processedItems': processed_items,
         })
 
     except KeyError as e:

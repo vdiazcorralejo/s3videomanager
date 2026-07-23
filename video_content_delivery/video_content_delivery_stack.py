@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_apigateway as apigateway,
     aws_s3_notifications as s3n,
     aws_secretsmanager as secretsmanager,
+    aws_sqs as sqs,
     aws_wafv2 as wafv2,
     aws_iam as iam,
     aws_logs as logs,
@@ -219,17 +220,45 @@ class VideoContentDeliveryStack(Stack):
             environment=environment_l
         )
 
+        # Create SQS queue for resilient video processing with DLQ
+        process_video_dlq = sqs.Queue(
+            self,
+            "ProcessVideoDLQ",
+            retention_period=Duration.days(14),
+            removal_policy=self._get_removal_policy(),
+        )
+        process_video_queue = sqs.Queue(
+            self,
+            "ProcessVideoQueue",
+            visibility_timeout=Duration.seconds(60),
+            dead_letter_queue=sqs.DeadLetterQueue(
+                queue=process_video_dlq,
+                max_receive_count=3,
+            ),
+            removal_policy=self._get_removal_policy(),
+        )
+
         # Grant S3 permissions to the video processing Lambda
         bucket.grant_read(process_video_function.lambda_function)
 
         # Grant additional S3 permissions for playlist generation
         bucket.grant_read_write(process_video_function.lambda_function)
 
-        # Configure S3 to trigger Lambda when MP4 files are uploaded
+        # Configure S3 to enqueue processing events for uploaded MP4 files
         bucket.add_event_notification(
             s3.EventType.OBJECT_CREATED_PUT,
-            s3n.LambdaDestination(process_video_function.lambda_function),  # type: ignore[arg-type]
-            s3.NotificationKeyFilter(suffix=".mp4")  # Only trigger for MP4 files
+            s3n.SqsDestination(process_video_queue),
+            s3.NotificationKeyFilter(suffix=".mp4")
+        )
+
+        process_video_queue.grant_consume_messages(process_video_function.lambda_function)
+        _lambda.EventSourceMapping(
+            self,
+            "ProcessVideoQueueEventSource",
+            target=process_video_function.lambda_function,
+            event_source_arn=process_video_queue.queue_arn,
+            batch_size=1,
+            starting_position=_lambda.StartingPosition.TRIM_HORIZON,
         )
 
         # Create API Gateway for REST endpoints

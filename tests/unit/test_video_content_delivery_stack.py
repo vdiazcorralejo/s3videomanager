@@ -125,6 +125,15 @@ def test_authorizer_created():
     })
 
 
+def test_sqs_queue_and_dlq_are_created_for_video_processing():
+    app = core.App()
+    stack = VideoContentDeliveryStack(app, "video-content-delivery")
+
+    template = assertions.Template.from_stack(stack)
+
+    template.resource_count_is("AWS::SQS::Queue", 2)
+
+
 def test_dev_environment_uses_cost_optimized_lambda_settings():
     app = core.App()
     app.node.set_context("environment", "dev")
