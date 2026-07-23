@@ -196,7 +196,8 @@ The system is designed for **progressive download** scenarios — ideal for lega
 │           └── test_process_video.py         # Video processing handler tests
 │
 ├── docs/
-│   └── PLAN_MEJORA_PRODUCCION.md             # Production improvement plan (Spanish)
+│   ├── PLAN_MEJORA_PRODUCCION.md             # Production improvement plan (Spanish)
+│   └── PLAN_CDN_CLIENTES_GRANDES.md          # Detailed CDN distribution plan for large clients
 │
 └── .github/
     ├── copilot-instructions.md               # AI coding assistant instructions
