@@ -1,12 +1,37 @@
 import os
 import json
-import boto3
-from botocore.exceptions import ClientError
+
+try:
+    import boto3
+except ImportError:  # pragma: no cover - exercised in local/unit-test environments
+    boto3 = None
+try:
+    from botocore.exceptions import ClientError
+except ImportError:  # pragma: no cover - exercised in local/unit-test environments
+    ClientError = Exception
 from datetime import datetime
 
 REGION = os.environ.get('REGION', 'eu-west-1')
-s3_client = boto3.client('s3', region_name=REGION)
-dynamodb = boto3.client('dynamodb')
+s3_client = None
+dynamodb = None
+
+
+def get_s3_client():
+    global s3_client
+    if s3_client is None:
+        if boto3 is None:
+            raise RuntimeError('boto3 is required to generate presigned URLs')
+        s3_client = boto3.client('s3', region_name=REGION)
+    return s3_client
+
+
+def get_dynamodb_client():
+    global dynamodb
+    if dynamodb is None:
+        if boto3 is None:
+            raise RuntimeError('boto3 is required to access DynamoDB')
+        dynamodb = boto3.client('dynamodb', region_name=REGION)
+    return dynamodb
 
 DOWNLOAD_URL_EXPIRATION = 300
 PLAYBACK_URL_EXPIRATION = 86400
@@ -110,7 +135,7 @@ def list_files():
 
     try:
         print("Querying DynamoDB for video list...")
-        response = dynamodb.get_item(
+        response = get_dynamodb_client().get_item(
             TableName=table_name,
             Key={
                 'videoList': {'S': 'all_videos'},
@@ -194,7 +219,7 @@ def generate_upload_url(event):
     print(f"Generating presigned URL for bucket: {bucket_name}, key: {key}")
 
     try:
-        url = s3_client.generate_presigned_url(
+        url = get_s3_client().generate_presigned_url(
             'put_object',
             Params={
                 'Bucket': bucket_name,
@@ -231,7 +256,7 @@ def generate_download_url(event):
     print('Bucket name:', bucket_name)
 
     try:
-        url = s3_client.generate_presigned_url(
+        url = get_s3_client().generate_presigned_url(
             'get_object',
             Params={'Bucket': bucket_name, 'Key': key},
             ExpiresIn=DOWNLOAD_URL_EXPIRATION
@@ -266,7 +291,7 @@ def generate_playback_url(event):
     content_type = _playback_content_type_for_key(key)
 
     try:
-        url = s3_client.generate_presigned_url(
+        url = get_s3_client().generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': bucket_name,

@@ -2,7 +2,11 @@ import json
 import os
 from functools import lru_cache
 
-import boto3
+try:
+    import boto3
+except ImportError:  # pragma: no cover - exercised in local/unit-test environments
+    boto3 = None
+
 import jwt
 
 ALGORITHM = 'HS256'
@@ -11,13 +15,20 @@ ALGORITHM = 'HS256'
 @lru_cache(maxsize=1)
 def get_secret():
     secret_name = os.environ.get('JWT_SECRET_NAME')
-    if not secret_name:
-        raise RuntimeError('JWT_SECRET_NAME environment variable is not set')
+    if secret_name:
+        if boto3 is None:
+            raise RuntimeError('boto3 is required when JWT_SECRET_NAME is configured')
 
-    client = boto3.client('secretsmanager')
-    response = client.get_secret_value(SecretId=secret_name)
-    secret_payload = json.loads(response['SecretString'])
-    return secret_payload['JWT_SECRET_KEY']
+        client = boto3.client('secretsmanager')
+        response = client.get_secret_value(SecretId=secret_name)
+        secret_payload = json.loads(response['SecretString'])
+        return secret_payload['JWT_SECRET_KEY']
+
+    direct_secret = os.environ.get('JWT_SECRET_KEY')
+    if direct_secret:
+        return direct_secret
+
+    raise RuntimeError('JWT_SECRET_NAME environment variable is not set')
 
 
 def _extract_token(token):

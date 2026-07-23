@@ -4,7 +4,10 @@ import os
 from datetime import datetime, timezone
 from urllib.parse import unquote_plus
 
-import boto3
+try:
+    import boto3
+except ImportError:  # pragma: no cover - exercised in local/unit-test environments
+    boto3 = None
 
 dynamodb = None
 
