@@ -473,9 +473,9 @@ Beneficios:
 
 Tareas:
 
-- [ ] Migrar a S3 -> SQS -> Lambda
-- [ ] Configurar DLQ
-- [ ] Ajustar visibility timeout
+- [x] Migrar a S3 -> SQS -> Lambda
+- [x] Configurar DLQ
+- [x] Ajustar visibility timeout
 
 ---
 
@@ -494,9 +494,9 @@ Alarmas minimas:
 
 Tareas:
 
-- [ ] Crear topic SNS
-- [ ] Crear alarmas base
-- [ ] Crear dashboard operacional
+- [x] Crear topic SNS
+- [x] Crear alarmas base
+- [x] Crear dashboard operacional
 
 ---
 

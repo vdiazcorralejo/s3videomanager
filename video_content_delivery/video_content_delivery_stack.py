@@ -9,6 +9,9 @@ from aws_cdk import (
     aws_s3_notifications as s3n,
     aws_secretsmanager as secretsmanager,
     aws_sqs as sqs,
+    aws_sns as sns,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_wafv2 as wafv2,
     aws_iam as iam,
     aws_logs as logs,
@@ -266,6 +269,122 @@ class VideoContentDeliveryStack(Stack):
             self,
             "MyAPIGateway",
             environment_name=self.environment_name,
+        )
+
+        monitoring_topic = sns.Topic(
+            self,
+            "VideoDeliveryMonitoringTopic",
+            display_name="Video Delivery Monitoring",
+            topic_name=f"video-delivery-monitoring-{self.environment_name}",
+        )
+        monitoring_subscription = sns.Subscription(
+            self,
+            "VideoDeliveryMonitoringSubscription",
+            topic=monitoring_topic,
+            protocol=sns.SubscriptionProtocol.EMAIL,
+            endpoint="ops@example.com",
+        )
+
+        api_5xx_alarm = cloudwatch.Alarm(
+            self,
+            "ApiGateway5xxAlarm",
+            metric=apigateway_video.api.metric_server_error(),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_name=f"{construct_id}-api-5xx",
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+            actions_enabled=True,
+        )
+        api_5xx_alarm.add_alarm_action(cloudwatch_actions.SnsAction(monitoring_topic))
+
+        lambda_errors_alarm = cloudwatch.Alarm(
+            self,
+            "ProcessVideoLambdaErrorsAlarm",
+            metric=process_video_function.lambda_function.metric_errors(),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_name=f"{construct_id}-process-video-errors",
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        lambda_errors_alarm.add_alarm_action(cloudwatch_actions.SnsAction(monitoring_topic))
+
+        lambda_duration_alarm = cloudwatch.Alarm(
+            self,
+            "ProcessVideoLambdaDurationAlarm",
+            metric=process_video_function.lambda_function.metric_duration(statistic="p99"),
+            threshold=max(1, int(lambda_timeout.to_seconds() * 0.8)),
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_name=f"{construct_id}-process-video-duration",
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        lambda_duration_alarm.add_alarm_action(cloudwatch_actions.SnsAction(monitoring_topic))
+
+        lambda_throttles_alarm = cloudwatch.Alarm(
+            self,
+            "ProcessVideoLambdaThrottlesAlarm",
+            metric=process_video_function.lambda_function.metric_throttles(),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_name=f"{construct_id}-process-video-throttles",
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        lambda_throttles_alarm.add_alarm_action(cloudwatch_actions.SnsAction(monitoring_topic))
+
+        dlq_alarm = cloudwatch.Alarm(
+            self,
+            "ProcessVideoDlqAlarm",
+            metric=process_video_dlq.metric_approximate_number_of_messages_visible(),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_name=f"{construct_id}-process-video-dlq",
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        dlq_alarm.add_alarm_action(cloudwatch_actions.SnsAction(monitoring_topic))
+
+        dynamodb_throttles_alarm = cloudwatch.Alarm(
+            self,
+            "DynamoDbThrottlesAlarm",
+            metric=video_table.table.metric_throttled_requests_for_operation(
+                "PutItem",
+                statistic="Sum",
+            ),
+            threshold=1,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            alarm_name=f"{construct_id}-dynamodb-throttles",
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        dynamodb_throttles_alarm.add_alarm_action(cloudwatch_actions.SnsAction(monitoring_topic))
+
+        cloudwatch.Dashboard(
+            self,
+            "VideoDeliveryDashboard",
+            dashboard_name=f"{construct_id}-operations",
+            widgets=[
+                [
+                    cloudwatch.GraphWidget(
+                        title="API Gateway 5XX",
+                        left=[apigateway_video.api.metric_server_error()],
+                    )
+                ],
+                [
+                    cloudwatch.GraphWidget(
+                        title="Process Video Lambda Errors",
+                        left=[process_video_function.lambda_function.metric_errors()],
+                    )
+                ],
+                [
+                    cloudwatch.GraphWidget(
+                        title="DLQ Approximate Messages",
+                        left=[process_video_dlq.metric_approximate_number_of_messages_visible()],
+                    )
+                ],
+            ],
         )
 
         # Add a regional WAF WebACL with basic managed protections in production only

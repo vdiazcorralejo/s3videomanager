@@ -92,6 +92,7 @@ The system is designed for **progressive download** scenarios — ideal for lega
 - Triggers video processing Lambda on `.mp4` uploads
 
 #### 🗄️ DynamoDB Table (`listOfVideoFiles`)
+
 - **Partition key**: `videoList` (String)
 - **Sort key**: `videoId` (String)
 - **Billing mode**: Pay-per-request (auto-scaling)
@@ -110,6 +111,7 @@ The system is designed for **progressive download** scenarios — ideal for lega
 | `TokenGeneratorFunction` | Python 3.12 | 256 MB | API Gateway | Generate JWT tokens for auth |
 
 #### 🌐 API Gateway (`MyVideoFilesAPI`)
+
 - **Type**: REST API (Regional)
 - **Authentication**: Custom JWT authorizer on protected endpoints
 - **CORS**: Configured for `http://localhost:3000`

@@ -134,6 +134,17 @@ def test_sqs_queue_and_dlq_are_created_for_video_processing():
     template.resource_count_is("AWS::SQS::Queue", 2)
 
 
+def test_operations_monitoring_resources_are_created():
+    app = core.App()
+    stack = VideoContentDeliveryStack(app, "video-content-delivery")
+
+    template = assertions.Template.from_stack(stack)
+
+    template.resource_count_is("AWS::SNS::Topic", 1)
+    template.resource_count_is("AWS::CloudWatch::Alarm", 6)
+    template.resource_count_is("AWS::CloudWatch::Dashboard", 1)
+
+
 def test_dev_environment_uses_cost_optimized_lambda_settings():
     app = core.App()
     app.node.set_context("environment", "dev")
